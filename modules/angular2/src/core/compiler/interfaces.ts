@@ -1,4 +1,27 @@
-import {StringMap} from 'angular2/src/core/facade/collection';
+import {StringMap, MapWrapper} from 'angular2/src/core/facade/collection';
+import {SimpleChange} from 'angular2/src/core/change_detection/change_detection_util';
+
+export enum LifecycleHooks {
+  OnInit,
+  OnDestroy,
+  DoCheck,
+  OnChanges,
+  AfterContentInit,
+  AfterContentChecked,
+  AfterViewInit,
+  AfterViewChecked
+}
+
+export var LIFECYCLE_HOOKS_VALUES = [
+  LifecycleHooks.OnInit,
+  LifecycleHooks.OnDestroy,
+  LifecycleHooks.DoCheck,
+  LifecycleHooks.OnChanges,
+  LifecycleHooks.AfterContentInit,
+  LifecycleHooks.AfterContentChecked,
+  LifecycleHooks.AfterViewInit,
+  LifecycleHooks.AfterViewChecked
+];
 
 /**
  * Lifecycle hooks are guaranteed to be called in the following order:
@@ -38,9 +61,7 @@ import {StringMap} from 'angular2/src/core/facade/collection';
  * }
  *  ```
  */
-export class OnChanges {
-  onChanges(changes: StringMap<string, any>): void {}
-}
+export interface OnChanges { onChanges(changes: StringMap<string, SimpleChange>); }
 
 /**
  * Notify a directive when it has been checked the first time.
@@ -54,15 +75,13 @@ export class OnChanges {
  *
  * ```
  * @Component(...)
- * class MyComponent @implements OnInit {
+ * class MyComponent implements OnInit {
  *   onInit(): void {
  *   }
  * }
  *  ```
  */
-export class OnInit {
-  onInit(): void {}
-}
+export interface OnInit { onInit(); }
 
 /**
  * Overrides the default change detection.
@@ -83,9 +102,7 @@ export class OnInit {
  * }
  *  ```
  */
-export class DoCheck {
-  doCheck(): void {}
-}
+export interface DoCheck { doCheck(); }
 
 /**
  * Notify a directive whenever a {@link ViewMetadata} that contains it is destroyed.
@@ -101,9 +118,7 @@ export class DoCheck {
  * }
  * ```
  */
-export class OnDestroy {
-  onDestroy(): void {}
-}
+export interface OnDestroy { onDestroy(); }
 
 /**
  * Notify a directive when the bindings of all its content children have been checked the first
@@ -119,9 +134,7 @@ export class OnDestroy {
  * }
  *  ```
  */
-export class AfterContentInit {
-  afterContentInit(): void {}
-}
+export interface AfterContentInit { afterContentInit(); }
 
 /**
  * Notify a directive when the bindings of all its content children have been checked (whether
@@ -137,9 +150,7 @@ export class AfterContentInit {
  * }
  *  ```
  */
-export class AfterContentChecked {
-  afterContentChecked(): void {}
-}
+export interface AfterContentChecked { afterContentChecked(); }
 
 /**
  * Notify a directive when the bindings of all its view children have been checked the first time
@@ -155,9 +166,7 @@ export class AfterContentChecked {
  * }
  *  ```
  */
-export class AfterViewInit {
-  afterViewInit(): void {}
-}
+export interface AfterViewInit { afterViewInit(); }
 
 /**
  * Notify a directive when the bindings of all its view children have been checked (whether they
@@ -173,6 +182,4 @@ export class AfterViewInit {
  * }
  *  ```
  */
-export class AfterViewChecked {
-  afterViewChecked(): void {}
-}
+export interface AfterViewChecked { afterViewChecked(); }

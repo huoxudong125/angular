@@ -1,4 +1,5 @@
-import {Type, isPresent, stringify, BaseException} from 'angular2/src/core/facade/lang';
+import {Type, isPresent, stringify} from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {
   ListWrapper,
   Map,
@@ -155,6 +156,8 @@ export class Reflector {
   _containsReflectionInfo(typeOrFunc) { return this._injectableInfo.has(typeOrFunc); }
 
   importUri(type: Type): string { return this.reflectionCapabilities.importUri(type); }
+
+  moduleId(type: Type): string { return this.reflectionCapabilities.moduleId(type); }
 }
 
 function _mergeMaps(target: Map<any, any>, config: StringMap<string, Function>): void {

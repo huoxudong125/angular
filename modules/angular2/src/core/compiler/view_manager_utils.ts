@@ -1,7 +1,7 @@
 import {Injector, Binding, Injectable, ResolvedBinding} from 'angular2/src/core/di';
 import {ListWrapper, MapWrapper, Map, StringMapWrapper} from 'angular2/src/core/facade/collection';
 import * as eli from './element_injector';
-import {isPresent, isBlank, BaseException} from 'angular2/src/core/facade/lang';
+import {isPresent, isBlank} from 'angular2/src/core/facade/lang';
 import * as viewModule from './view';
 import {internalView} from './view_ref';
 import * as avmModule from './view_manager';
@@ -108,7 +108,7 @@ export class AppViewManagerUtils {
   // Misnomer: this method is attaching next to the view container.
   attachViewInContainer(parentView: viewModule.AppView, boundElementIndex: number,
                         contextView: viewModule.AppView, contextBoundElementIndex: number,
-                        atIndex: number, view: viewModule.AppView) {
+                        index: number, view: viewModule.AppView) {
     if (isBlank(contextView)) {
       contextView = parentView;
       contextBoundElementIndex = boundElementIndex;
@@ -119,7 +119,7 @@ export class AppViewManagerUtils {
       viewContainer = new viewModule.AppViewContainer();
       parentView.viewContainers[boundElementIndex] = viewContainer;
     }
-    ListWrapper.insert(viewContainer.views, atIndex, view);
+    ListWrapper.insert(viewContainer.views, index, view);
     var elementInjector = contextView.elementInjectors[contextBoundElementIndex];
 
     for (var i = view.rootElementInjectors.length - 1; i >= 0; i--) {
@@ -130,15 +130,14 @@ export class AppViewManagerUtils {
     elementInjector.traverseAndSetQueriesAsDirty();
   }
 
-  detachViewInContainer(parentView: viewModule.AppView, boundElementIndex: number,
-                        atIndex: number) {
+  detachViewInContainer(parentView: viewModule.AppView, boundElementIndex: number, index: number) {
     var viewContainer = parentView.viewContainers[boundElementIndex];
-    var view = viewContainer.views[atIndex];
+    var view = viewContainer.views[index];
 
     parentView.elementInjectors[boundElementIndex].traverseAndSetQueriesAsDirty();
 
     view.changeDetector.remove();
-    ListWrapper.removeAt(viewContainer.views, atIndex);
+    ListWrapper.removeAt(viewContainer.views, index);
     for (var i = 0; i < view.rootElementInjectors.length; ++i) {
       var inj = view.rootElementInjectors[i];
       inj.unlink();
@@ -148,13 +147,13 @@ export class AppViewManagerUtils {
 
   hydrateViewInContainer(parentView: viewModule.AppView, boundElementIndex: number,
                          contextView: viewModule.AppView, contextBoundElementIndex: number,
-                         atIndex: number, imperativelyCreatedBindings: ResolvedBinding[]) {
+                         index: number, imperativelyCreatedBindings: ResolvedBinding[]) {
     if (isBlank(contextView)) {
       contextView = parentView;
       contextBoundElementIndex = boundElementIndex;
     }
     var viewContainer = parentView.viewContainers[boundElementIndex];
-    var view = viewContainer.views[atIndex];
+    var view = viewContainer.views[index];
     var elementInjector = contextView.elementInjectors[contextBoundElementIndex];
 
     var injector = isPresent(imperativelyCreatedBindings) ?

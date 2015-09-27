@@ -1,5 +1,7 @@
 import {bind, Binding} from 'angular2/src/core/di';
 import {DEFAULT_PIPES} from 'angular2/src/core/pipes';
+import {AnimationBuilder} from 'angular2/src/animate/animation_builder';
+import {MockAnimationBuilder} from 'angular2/src/mock/animation_builder_mock';
 
 import {Compiler, CompilerCache} from 'angular2/src/core/compiler/compiler';
 import {Reflector, reflector} from 'angular2/src/core/reflection/reflection';
@@ -13,7 +15,7 @@ import {
   KeyValueDiffers,
   defaultKeyValueDiffers
 } from 'angular2/src/core/change_detection/change_detection';
-import {ExceptionHandler} from 'angular2/src/core/exception_handler';
+import {ExceptionHandler} from 'angular2/src/core/facade/exceptions';
 import {ViewLoader} from 'angular2/src/core/render/dom/compiler/view_loader';
 import {ViewResolver} from 'angular2/src/core/compiler/view_resolver';
 import {DirectiveResolver} from 'angular2/src/core/compiler/directive_resolver';
@@ -36,6 +38,7 @@ import {
   EVENT_MANAGER_PLUGINS
 } from 'angular2/src/core/render/dom/events/event_manager';
 
+import {MockDirectiveResolver} from 'angular2/src/mock/directive_resolver_mock';
 import {MockViewResolver} from 'angular2/src/mock/view_resolver_mock';
 import {MockXHR} from 'angular2/src/core/render/xhr_mock';
 import {MockLocationStrategy} from 'angular2/src/mock/mock_location_strategy';
@@ -71,6 +74,7 @@ import {
 } from 'angular2/src/core/render/dom/schema/dom_element_schema_registry';
 import {Serializer} from "angular2/src/web_workers/shared/serializer";
 import {Log} from './utils';
+import {compilerBindings} from 'angular2/src/compiler/compiler';
 
 /**
  * Returns the root injector bindings.
@@ -104,8 +108,8 @@ function _getAppBindings() {
   }
 
   return [
-    bind(DOCUMENT)
-        .toValue(appDoc),
+    compilerBindings(),
+    bind(DOCUMENT).toValue(appDoc),
     DomRenderer,
     bind(Renderer).toAlias(DomRenderer),
     bind(APP_ID).toValue('a'),
@@ -125,6 +129,7 @@ function _getAppBindings() {
     bind(APP_VIEW_POOL_CAPACITY).toValue(500),
     Compiler,
     CompilerCache,
+    bind(DirectiveResolver).toClass(MockDirectiveResolver),
     bind(ViewResolver).toClass(MockViewResolver),
     DEFAULT_PIPES,
     bind(IterableDiffers).toValue(defaultIterableDiffers),
@@ -133,7 +138,6 @@ function _getAppBindings() {
     Log,
     ViewLoader,
     DynamicComponentLoader,
-    DirectiveResolver,
     PipeResolver,
     Parser,
     Lexer,
@@ -148,6 +152,7 @@ function _getAppBindings() {
     StyleInliner,
     TestComponentBuilder,
     bind(NgZone).toClass(MockNgZone),
+    bind(AnimationBuilder).toClass(MockAnimationBuilder),
     EventManager,
     new Binding(EVENT_MANAGER_PLUGINS, {toClass: DomEventsPlugin, multi: true})
   ];

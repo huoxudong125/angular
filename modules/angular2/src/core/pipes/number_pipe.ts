@@ -5,10 +5,10 @@ import {
   StringWrapper,
   NumberWrapper,
   RegExpWrapper,
-  BaseException,
   CONST,
   FunctionWrapper
 } from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {NumberFormatter, NumberFormatStyle} from 'angular2/src/core/facade/intl';
 import {Injectable} from 'angular2/src/core/di';
 import {PipeTransform, WrappedValue} from 'angular2/src/core/change_detection';
@@ -59,7 +59,7 @@ export class NumberPipe {
  * WARNING: this pipe uses the Internationalization API.
  * Therefore it is only reliable in Chrome and Opera browsers.
  *
- * Formats a number as local text. i.e. group sizing and seperator and other locale-specific
+ * Formats a number as local text. i.e. group sizing and separator and other locale-specific
  * configurations are based on the active locale.
  *
  * # Usage

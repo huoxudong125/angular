@@ -1,4 +1,5 @@
-import {isString, isPresent, isBlank, makeTypeError} from 'angular2/src/core/facade/lang';
+import {isString, isPresent, isBlank} from 'angular2/src/core/facade/lang';
+import {makeTypeError} from 'angular2/src/core/facade/exceptions';
 import {Injectable} from 'angular2/src/core/di/decorators';
 import {RequestOptionsArgs, Connection, ConnectionBackend} from './interfaces';
 import {Request} from './static_request';
@@ -19,10 +20,7 @@ function mergeOptions(defaultOpts, providedOpts, method, url): RequestOptions {
       url: providedOpts.url,
       search: providedOpts.search,
       headers: providedOpts.headers,
-      body: providedOpts.body,
-      mode: providedOpts.mode,
-      credentials: providedOpts.credentials,
-      cache: providedOpts.cache
+      body: providedOpts.body
     }));
   }
   if (isPresent(method)) {
@@ -119,6 +117,8 @@ export class Http {
           new Request(mergeOptions(this._defaultOptions, options, RequestMethods.Get, url)));
     } else if (url instanceof Request) {
       responseObservable = httpRequest(this._backend, url);
+    } else {
+      throw makeTypeError('First argument must be a url string or Request instance.');
     }
     return responseObservable;
   }
@@ -200,6 +200,8 @@ export class Jsonp extends Http {
         makeTypeError('JSONP requests must use GET request method.');
       }
       responseObservable = httpRequest(this._backend, url);
+    } else {
+      throw makeTypeError('First argument must be a url string or Request instance.');
     }
     return responseObservable;
   }

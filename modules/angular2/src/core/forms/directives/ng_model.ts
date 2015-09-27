@@ -1,8 +1,7 @@
 import {CONST_EXPR} from 'angular2/src/core/facade/lang';
 import {EventEmitter, ObservableWrapper} from 'angular2/src/core/facade/async';
-
 import {OnChanges} from 'angular2/lifecycle_hooks';
-
+import {SimpleChange} from 'angular2/src/core/change_detection';
 import {Query, Directive} from 'angular2/src/core/metadata';
 import {forwardRef, Binding, Inject, Optional} from 'angular2/src/core/di';
 import {NgControl} from './ng_control';
@@ -13,16 +12,21 @@ import {setUpControl, isPropertyUpdated} from './shared';
 const formControlBinding = CONST_EXPR(new Binding(NgControl, {toAlias: forwardRef(() => NgModel)}));
 
 /**
- * Binds a domain model to the form.
+ * Binds a domain model to a form control.
  *
- * # Example
- *  ```
+ * # Usage
+ *
+ * `ng-model` binds an existing domain model to a form control. For a
+ * two-way binding, use `[(ng-model)]` to ensure the model updates in
+ * both directions.
+ *
+ * ### Example ([live demo](http://plnkr.co/edit/R3UX5qDaUqFO2VYR0UzH?p=preview))
+ *  ```typescript
  * @Component({selector: "search-comp"})
  * @View({
  *      directives: [FORM_DIRECTIVES],
- *      template: `
-              <input type='text' [(ng-model)]="searchQuery">
- *      `})
+ *      template: `<input type='text' [(ng-model)]="searchQuery">`
+ *      })
  * class SearchComp {
  *  searchQuery: string;
  * }
@@ -48,14 +52,14 @@ export class NgModel extends NgControl implements OnChanges {
     this.validators = validators;
   }
 
-  onChanges(c: StringMap<string, any>) {
+  onChanges(changes: StringMap<string, SimpleChange>) {
     if (!this._added) {
       setUpControl(this._control, this);
       this._control.updateValidity();
       this._added = true;
     }
 
-    if (isPropertyUpdated(c, this.viewModel)) {
+    if (isPropertyUpdated(changes, this.viewModel)) {
       this._control.updateValue(this.model);
       this.viewModel = this.model;
     }

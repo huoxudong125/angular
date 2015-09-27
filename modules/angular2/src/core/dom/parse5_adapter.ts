@@ -10,12 +10,13 @@ var url = require('url');
 import {MapWrapper, ListWrapper, StringMapWrapper} from 'angular2/src/core/facade/collection';
 import {DomAdapter, setRootDomAdapter} from './dom_adapter';
 import {
-  BaseException,
   isPresent,
   isBlank,
   global,
-  setValueOnPath
+  setValueOnPath,
+  DateWrapper
 } from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {SelectorMatcher, CssSelector} from 'angular2/src/core/render/dom/compiler/selector';
 
 var _attrToPropMap = {
@@ -275,7 +276,11 @@ export class Parse5DomAdapter extends DomAdapter {
   createElement(tagName): HTMLElement {
     return treeAdapter.createElement(tagName, 'http://www.w3.org/1999/xhtml', []);
   }
-  createTextNode(text: string): Text { throw _notImplemented('createTextNode'); }
+  createTextNode(text: string): Text {
+    var t = <any>this.createComment(text);
+    t.type = 'text';
+    return t;
+  }
   createScriptTag(attrName: string, attrValue: string): HTMLElement {
     return treeAdapter.createElement("script", 'http://www.w3.org/1999/xhtml',
                                      [{name: attrName, value: attrValue}]);
@@ -423,6 +428,9 @@ export class Parse5DomAdapter extends DomAdapter {
   setAttribute(element, attribute: string, value: string) {
     if (attribute) {
       element.attribs[attribute] = value;
+      if (attribute === 'class') {
+        element.className = value;
+      }
     }
   }
   removeAttribute(element, attribute: string) {
@@ -544,9 +552,16 @@ export class Parse5DomAdapter extends DomAdapter {
   getLocation(): Location { throw 'not implemented'; }
   getUserAgent(): string { return "Fake user agent"; }
   getData(el, name: string): string { return this.getAttribute(el, 'data-' + name); }
+  getComputedStyle(el): any { throw 'not implemented'; }
   setData(el, name: string, value: string) { this.setAttribute(el, 'data-' + name, value); }
   // TODO(tbosch): move this into a separate environment class once we have it
   setGlobalVar(path: string, value: any) { setValueOnPath(global, path, value); }
+  requestAnimationFrame(callback): number { return setTimeout(callback, 0); }
+  cancelAnimationFrame(id: number) { clearTimeout(id); }
+  performanceNow(): number { return DateWrapper.toMillis(DateWrapper.now()); }
+  getAnimationPrefix(): string { return ''; }
+  getTransitionEnd(): string { return 'transitionend'; }
+  supportsAnimation(): boolean { return true; }
 }
 
 // TODO: build a proper list, this one is all the keys of a HTMLInputElement

@@ -1,6 +1,7 @@
 library core.spies;
 
 import 'package:angular2/core.dart';
+import 'package:angular2/src/core/di/injector.dart';
 import 'package:angular2/src/core/change_detection/change_detection.dart';
 import 'package:angular2/src/core/render/api.dart';
 import 'package:angular2/src/core/compiler/directive_resolver.dart';
@@ -107,5 +108,10 @@ class SpyDomAdapter extends SpyObject implements DomAdapter {
 
 @proxy
 class SpyXHR extends SpyObject implements XHR {
+  noSuchMethod(m) => super.noSuchMethod(m);
+}
+
+@proxy
+class SpyRenderEventDispatcher extends SpyObject implements RenderEventDispatcher {
   noSuchMethod(m) => super.noSuchMethod(m);
 }

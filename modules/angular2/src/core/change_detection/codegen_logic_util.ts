@@ -1,20 +1,15 @@
 import {ListWrapper} from 'angular2/src/core/facade/collection';
-import {
-  BaseException,
-  Json,
-  StringWrapper,
-  isPresent,
-  isBlank
-} from 'angular2/src/core/facade/lang';
+import {Json, StringWrapper, isPresent, isBlank} from 'angular2/src/core/facade/lang';
 import {CodegenNameUtil} from './codegen_name_util';
 import {codify, combineGeneratedStrings, rawString} from './codegen_facade';
 import {ProtoRecord, RecordType} from './proto_record';
 import {BindingTarget} from './binding_record';
 import {DirectiveRecord} from './directive_record';
 import {ChangeDetectionStrategy} from './constants';
+import {BaseException} from 'angular2/src/core/facade/exceptions';
 
 /**
- * Class responsible for providing change detection logic for chagne detector classes.
+ * Class responsible for providing change detection logic for change detector classes.
  */
 export class CodegenLogicUtil {
   constructor(private _names: CodegenNameUtil, private _utilName: string,

@@ -1,14 +1,13 @@
-import {isBlank, BaseException, stringify} from 'angular2/src/core/facade/lang';
+import {isBlank, stringify} from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {describe, ddescribe, it, iit, expect, beforeEach} from 'angular2/test_lib';
 import {SpyDependencyProvider} from '../spies';
 import {
   Injector,
-  ProtoInjector,
   bind,
   ResolvedBinding,
   Key,
   forwardRef,
-  DependencyMetadata,
   Injectable,
   InjectMetadata,
   SelfMetadata,
@@ -16,12 +15,17 @@ import {
   SkipSelfMetadata,
   Optional,
   Inject,
-  BindingWithVisibility,
-  Visibility,
   Binding
 } from 'angular2/core';
+import {DependencyMetadata} from 'angular2/src/core/di/metadata';
 
-import {InjectorInlineStrategy, InjectorDynamicStrategy} from 'angular2/src/core/di/injector';
+import {
+  InjectorInlineStrategy,
+  InjectorDynamicStrategy,
+  ProtoInjector,
+  BindingWithVisibility,
+  Visibility
+} from 'angular2/src/core/di/injector';
 
 class CustomDependencyMetadata extends DependencyMetadata {}
 
@@ -105,8 +109,8 @@ export function main() {
      bindings: dynamicBindings,
      strategyClass: InjectorDynamicStrategy
    }].forEach((context) => {
-    function createInjector(bindings: any[], dependencyProvider = null) {
-      return Injector.resolveAndCreate(bindings.concat(context['bindings']), dependencyProvider);
+    function createInjector(bindings: any[]) {
+      return Injector.resolveAndCreate(bindings.concat(context['bindings']));
     }
 
     describe(`injector ${context['strategy']}`, () => {
@@ -363,7 +367,8 @@ export function main() {
         depProvider.spy("getDependency").andReturn(e);
 
         var bindings = Injector.resolve([Car]);
-        var injector = Injector.fromResolvedBindings(bindings, depProvider);
+        var proto = new ProtoInjector([new BindingWithVisibility(bindings[0], Visibility.Public)]);
+        var injector = new Injector(proto, null, depProvider);
 
         expect(injector.get(Car).engine).toEqual(e);
         expect(depProvider.spy("getDependency"))

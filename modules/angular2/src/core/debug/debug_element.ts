@@ -1,4 +1,4 @@
-import {Type, isPresent, BaseException, isBlank} from 'angular2/src/core/facade/lang';
+import {Type, isPresent, isBlank} from 'angular2/src/core/facade/lang';
 import {ListWrapper, MapWrapper, Predicate} from 'angular2/src/core/facade/collection';
 
 import {DOM} from 'angular2/src/core/dom/dom_adapter';
@@ -11,17 +11,16 @@ import {ElementRef} from 'angular2/src/core/compiler/element_ref';
 /**
  * A DebugElement contains information from the Angular compiler about an
  * element and provides access to the corresponding ElementInjector and
- * underlying dom Element, as well as a way to query for children.
+ * underlying DOM Element, as well as a way to query for children.
  */
 export class DebugElement {
   _elementInjector: ElementInjector;
 
+  /**
+   * @private
+   */
   constructor(private _parentView: AppView, private _boundElementIndex: number) {
     this._elementInjector = this._parentView.elementInjectors[this._boundElementIndex];
-  }
-
-  static create(elementRef: ElementRef): DebugElement {
-    return new DebugElement(internalView(elementRef.parentView), elementRef.boundElementIndex);
   }
 
   get componentInstance(): any {
@@ -144,7 +143,7 @@ export class DebugElement {
  * @return {DebugElement}
  */
 export function inspectElement(elementRef: ElementRef): DebugElement {
-  return DebugElement.create(elementRef);
+  return new DebugElement(internalView(elementRef.parentView), elementRef.boundElementIndex);
 }
 
 export function asNativeElements(arr: DebugElement[]): any[] {

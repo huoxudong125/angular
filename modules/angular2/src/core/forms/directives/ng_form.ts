@@ -19,35 +19,64 @@ const formDirectiveBinding =
     CONST_EXPR(new Binding(ControlContainer, {toAlias: forwardRef(() => NgForm)}));
 
 /**
- * Creates and binds a form object to a DOM element.
+ * If `NgForm` is bound in a component, `<form>` elements in that component will be
+ * upgraded to use the Angular form system.
  *
- * # Example
+ * # Typical Use
  *
- *  ```
- * @Component({selector: "signup-comp"})
+ * Include `FORM_DIRECTIVES` in the `directives` section of a {@link View} annotation
+ * to use `NgForm` and its associated controls.
+ *
+ * # Structure
+ *
+ * An Angular form is a collection of {@link Control}s in some hierarchy.
+ * `Control`s can be at the top level or can be organized in {@link ControlGroups}
+ * or {@link ControlArray}s. This hierarchy is reflected in the form's `value`, a
+ * JSON object that mirrors the form structure.
+ *
+ * # Submission
+ *
+ * The `ng-submit` event signals when the user triggers a form submission.
+ *
+ * ### Example ([live demo](http://plnkr.co/edit/ltdgYj4P0iY64AR71EpL?p=preview))
+ *
+ *  ```typescript
+ * @Component({
+ *   selector: 'my-app'
+ * })
  * @View({
- *      directives: [FORM_DIRECTIVES],
- *      template: `
- *              <form #f="form" (submit)='onSignUp(f.value)'>
- *                <div ng-control-group='credentials' #credentials="form">
- *                  Login <input type='text' ng-control='login'>
- *                  Password <input type='password' ng-control='password'>
- *                </div>
- *                <div *ng-if="!credentials.valid">Credentials are invalid</div>
+ *   template: `
+ *     <div>
+ *       <p>Submit the form to see the data object Angular builds</p>
+ *       <h2>NgForm demo</h2>
+ *       <form #f="form" (ng-submit)="onSubmit(f.value)">
+ *         <h3>Control group: credentials</h3>
+ *         <div ng-control-group="credentials">
+ *           <p>Login: <input type="text" ng-control="login"></p>
+ *           <p>Password: <input type="password" ng-control="password"></p>
+ *         </div>
+ *         <h3>Control group: person</h3>
+ *         <div ng-control-group="person">
+ *           <p>First name: <input type="text" ng-control="firstName"></p>
+ *           <p>Last name: <input type="text" ng-control="lastName"></p>
+ *         </div>
+ *         <button type="submit">Submit Form</button>
+ *       <p>Form data submitted:</p>
+ *       </form>
+ *       <pre>{{data}}</pre>
+ *     </div>
+ * `,
+ *   directives: [CORE_DIRECTIVES, FORM_DIRECTIVES]
+ * })
+ * export class App {
+ *   constructor() {}
  *
- *                <div ng-control-group='personal'>
- *                  Name <input type='text' ng-control='name'>
- *                </div>
- *                <button type='submit'>Sign Up!</button>
- *              </form>
- *      `})
- * class SignupComp {
- *  onSignUp(value) {
- *    // value === {personal: {name: 'some name'},
- *    //  credentials: {login: 'some login', password: 'some password'}}
- *  }
+ *   data: string;
+ *
+ *   onSubmit(data) {
+ *     this.data = JSON.stringify(data, null, 2);
+ *   }
  * }
- *
  *  ```
  */
 @Directive({
@@ -60,13 +89,8 @@ const formDirectiveBinding =
   exportAs: 'form'
 })
 export class NgForm extends ControlContainer implements Form {
-  form: ControlGroup;
+  form: ControlGroup = new ControlGroup({});
   ngSubmit = new EventEmitter();
-
-  constructor() {
-    super();
-    this.form = new ControlGroup({});
-  }
 
   get formDirective(): Form { return this; }
 
@@ -79,10 +103,10 @@ export class NgForm extends ControlContainer implements Form {
   addControl(dir: NgControl): void {
     this._later(_ => {
       var container = this._findContainer(dir.path);
-      var c = new Control();
-      setUpControl(c, dir);
-      container.addControl(dir.name, c);
-      c.updateValidity();
+      var ctrl = new Control();
+      setUpControl(ctrl, dir);
+      container.addControl(dir.name, ctrl);
+      ctrl.updateValidity();
     });
   }
 
@@ -101,9 +125,9 @@ export class NgForm extends ControlContainer implements Form {
   addControlGroup(dir: NgControlGroup): void {
     this._later(_ => {
       var container = this._findContainer(dir.path);
-      var c = new ControlGroup({});
-      container.addControl(dir.name, c);
-      c.updateValidity();
+      var group = new ControlGroup({});
+      container.addControl(dir.name, group);
+      group.updateValidity();
     });
   }
 
@@ -123,8 +147,8 @@ export class NgForm extends ControlContainer implements Form {
 
   updateModel(dir: NgControl, value: any): void {
     this._later(_ => {
-      var c = <Control>this.form.find(dir.path);
-      c.updateValue(value);
+      var ctrl = <Control>this.form.find(dir.path);
+      ctrl.updateValue(value);
     });
   }
 
@@ -138,9 +162,5 @@ export class NgForm extends ControlContainer implements Form {
     return ListWrapper.isEmpty(path) ? this.form : <ControlGroup>this.form.find(path);
   }
 
-  _later(fn) {
-    var c: PromiseCompleter<any> = PromiseWrapper.completer();
-    PromiseWrapper.then(c.promise, fn, (_) => {});
-    c.resolve(null);
-  }
+  _later(fn): void { PromiseWrapper.then(PromiseWrapper.resolve(null), fn, (_) => {}); }
 }

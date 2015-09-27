@@ -21,6 +21,7 @@ var licenseWrap = require('./tools/build/licensewrap');
 var watch = require('./tools/build/watch');
 
 var pubget = require('./tools/build/pubget');
+var proto = require('./tools/build/proto');
 var linknodemodules = require('./tools/build/linknodemodules');
 var pubbuild = require('./tools/build/pubbuild');
 var dartanalyzer = require('./tools/build/dartanalyzer');
@@ -39,9 +40,9 @@ var insert = require('gulp-insert');
 var buildRouter = require('./modules/angular1_router/build');
 var uglify = require('gulp-uglify');
 var shouldLog = require('./tools/build/logging');
-var tslint = require('gulp-tslint');
 var dartSdk = require('./tools/build/dart');
 var sauceConf = require('./sauce.conf');
+var os = require('os');
 
 require('./tools/check-environment')({
   requiredNpmVersion: '>=2.9.0',
@@ -91,19 +92,18 @@ var treatTestErrorsAsFatal = true;
 
 function runJasmineTests(globs, done) {
   var args = ['--'].concat(globs);
-  fork('./tools/traceur-jasmine', args, {
-    stdio: 'inherit'
-  }).on('close', function jasmineCloseHandler(exitCode) {
-    if (exitCode && treatTestErrorsAsFatal) {
-      var err = new Error('Jasmine tests failed');
-      // Mark the error for gulp similar to how gulp-utils.PluginError does it.
-      // The stack is not useful in this context.
-      err.showStack = false;
-      done(err);
-    } else {
-      done();
-    }
-  });
+  fork('./tools/cjs-jasmine', args, {stdio: 'inherit'})
+      .on('close', function jasmineCloseHandler(exitCode) {
+        if (exitCode && treatTestErrorsAsFatal) {
+          var err = new Error('Jasmine tests failed');
+          // Mark the error for gulp similar to how gulp-utils.PluginError does it.
+          // The stack is not useful in this context.
+          err.showStack = false;
+          done(err);
+        } else {
+          done();
+        }
+      });
 }
 
 // Note: when DART_SDK is not found, all gulp tasks ending with `.dart` will be skipped.
@@ -141,11 +141,8 @@ var BENCHPRESS_BUNDLE_CONFIG = {
     'angular2'
   ],
   excludes: [
-    'traceur',
-    'traceur/bin/traceur-runtime',
     'reflect-metadata',
     'selenium-webdriver',
-    'rtts_assert',
     'zone.js'
   ],
   ignore: [
@@ -253,6 +250,7 @@ gulp.task('build/analyze.ddc.dart', dartanalyzer(gulp, gulpPlugins, {
 
 gulp.task('build/check.apidocs.dart', dartapidocs(gulp, gulpPlugins, {
   dest: CONFIG.dest.dart,
+  output: os.tmpdir(),
   command: DART_SDK.DARTDOCGEN
 }));
 
@@ -289,6 +287,7 @@ gulp.task('enforce-format', function() {
 });
 
 gulp.task('lint', ['build.tools'], function() {
+  var tslint = require('gulp-tslint');
   // Built-in rules are at
   // https://github.com/palantir/tslint#supported-rules
   var tslintConfig = {
@@ -298,9 +297,12 @@ gulp.task('lint', ['build.tools'], function() {
       "requireParameterType": true
     }
   };
-
   return gulp.src(['modules/angular2/src/**/*.ts', '!modules/angular2/src/test_lib/**'])
-      .pipe(tslint({configuration: tslintConfig, rulesDirectory: 'dist/tools/tslint'}))
+      .pipe(tslint({
+        tslint: require('tslint'),
+        configuration: tslintConfig,
+        rulesDirectory: 'dist/tools/tslint'
+      }))
       .pipe(tslint.report('prose', {emitError: true}));
 });
 
@@ -488,6 +490,32 @@ gulp.task('docs/angular.io', ['build/clean.docs_angular_io'], function() {
   }
 });
 
+
+gulp.task('docs/angular.io/watch', function() {
+  watch(['modules/angular2/docs/**', 'modules/**/src/**'], ['docs/angular.io', 'docs/angular.io/copy']);
+});
+
+
+gulp.task('docs/angular.io/copy', function(){
+  var DOCS_DIRS = ['core', 'http', 'lifecycle_hooks', 'router', 'test'];
+  var DOCS_DIST = 'dist/angular.io/partials/api/angular2/';
+  var DOCS_IO_DIST = '../angular.io/public/docs/js/latest/api/';
+
+  var fs = require('fs');
+  var fse = require('fs-extra');
+
+  if (!fs.existsSync('../angular.io')) {
+    throw new Error('docs/angular.io-watch task requires the angular.io repo to be at ' + path.resolve('../angular.io'));
+  }
+
+  DOCS_DIRS.forEach(function(dir) {
+    var distIODir = DOCS_IO_DIST + dir;
+    fse.removeSync(distIODir);
+    fse.copySync(DOCS_DIST + dir, DOCS_IO_DIST + dir);
+  });
+});
+
+
 gulp.task('docs/typings', [], function() {
   try {
     var dgeni = new Dgeni([require('./docs/typescript-definition-package')]);
@@ -642,6 +670,7 @@ gulp.task('test.unit.dart', function (done) {
     '!build/pubget.angular2.dart',
     '!build/change_detect.dart',
     '!build/remove-pub-symlinks',
+    'build.dart.material.css',
     '!test.unit.dart/karma-server',
     '!test.unit.dart/karma-run',
     function(error) {
@@ -833,51 +862,50 @@ gulp.task('build/pure-packages.dart', function() {
   var transformStream = gulp
     .src([
       'modules_dart/transform/**/*',
-      '!modules_dart/transform/pubspec.yaml'
+      '!modules_dart/transform/**/*.proto'
     ])
     .pipe(gulp.dest(path.join(CONFIG.dest.dart, 'angular2')));
 
-  var moveStream = gulp
-    .src([
-      'modules_dart/**/*.dart',
-      'modules_dart/**/pubspec.yaml',
-      '!modules_dart/transform/**'
-    ])
-    .pipe(through2.obj(function(file, enc, done) {
-      if (file.path.endsWith('pubspec.yaml')) {
-        // Pure packages specify dependency_overrides relative to
-        // `modules_dart`, so they have to walk up and into `dist`.
-        //
-        // Example:
-        //
-        // dependency_overrides:
-        //   angular2:
-        //     path: ../../dist/dart/angular2
-        //
-        // When we copy a pure package into `dist` the relative path
-        // must be updated. The code below replaces paths accordingly.
-        // So the example above is turned into:
-        //
-        // dependency_overrides:
-        //   angular2:
-        //     path: ../angular2
-        //
-        var pubspec = yaml.safeLoad(file.contents.toString());
-        var overrides = pubspec.dependency_overrides;
-        if (overrides) {
-          Object.keys(overrides).forEach(function(pkg) {
-            var overridePath = overrides[pkg].path;
-            if (overridePath.startsWith(originalPrefix)) {
-              overrides[pkg].path = overridePath.replace(originalPrefix, '../');
-            }
-          });
-          file.contents = new Buffer(yaml.safeDump(pubspec));
-        }
-      }
-      this.push(file);
-      done();
-    }))
-    .pipe(gulp.dest(CONFIG.dest.dart));
+  var moveStream = gulp.src([
+                         'modules_dart/**/*.dart',
+                         'modules_dart/**/pubspec.yaml',
+                         '!modules_dart/transform/**'
+                       ])
+                       .pipe(through2.obj(function(file, enc, done) {
+                         if (/pubspec.yaml$/.test(file.path)) {
+                           // Pure packages specify dependency_overrides relative to
+                           // `modules_dart`, so they have to walk up and into `dist`.
+                           //
+                           // Example:
+                           //
+                           // dependency_overrides:
+                           //   angular2:
+                           //     path: ../../dist/dart/angular2
+                           //
+                           // When we copy a pure package into `dist` the relative path
+                           // must be updated. The code below replaces paths accordingly.
+                           // So the example above is turned into:
+                           //
+                           // dependency_overrides:
+                           //   angular2:
+                           //     path: ../angular2
+                           //
+                           var pubspec = yaml.safeLoad(file.contents.toString());
+                           var overrides = pubspec.dependency_overrides;
+                           if (overrides) {
+                             Object.keys(overrides).forEach(function(pkg) {
+                               var overridePath = overrides[pkg].path;
+                               if ((new RegExp('^' + originalPrefix)).test(overridePath)) {
+                                 overrides[pkg].path = overridePath.replace(originalPrefix, '../');
+                               }
+                             });
+                             file.contents = new Buffer(yaml.safeDump(pubspec));
+                           }
+                         }
+                         this.push(file);
+                         done();
+                       }))
+                       .pipe(gulp.dest(CONFIG.dest.dart));
 
 
   return merge2(transformStream, moveStream);
@@ -886,6 +914,7 @@ gulp.task('build/pure-packages.dart', function() {
 // Builds all Dart packages, but does not compile them
 gulp.task('build/packages.dart', function(done) {
   runSequence(
+    'lint_protos.dart',
     'build/tree.dart',
     'build/pure-packages.dart',
     // Run after 'build/tree.dart' because broccoli clears the dist/dart folder
@@ -918,7 +947,7 @@ gulp.task('!build.tools', function() {
   var stream = gulp.src(['tools/**/*.ts'])
       .pipe(sourcemaps.init())
       .pipe(tsc({target: 'ES5', module: 'commonjs',
-                 // Don't use the version of typescript that gulp-typescript depends on, we need 1.5
+                 // Don't use the version of typescript that gulp-typescript depends on
                  // see https://github.com/ivogabe/gulp-typescript#typescript-version
                  typescript: require('typescript')}))
       .on('error', function(error) {
@@ -955,6 +984,7 @@ gulp.task('!broccoli.js.prod', function() {
 gulp.task('build.js.dev', ['build/clean.js'], function(done) {
   runSequence(
     'broccoli.js.dev',
+    'build.css.material',
     sequenceComplete(done)
   );
 });
@@ -992,18 +1022,14 @@ gulp.task('!build.js.cjs', function() {
 
 
 var bundleConfig = {
-  paths: {
-    "*": "dist/js/prod/es6/*.js",
-    "rx": "node_modules/rx/dist/rx.js"
-  },
+  paths: {"*": "dist/js/prod/es5/*.js"},
+  // Files that end up empty after transpilation confuse system-builder
+  // and need to be explitily listed here.
+  // TODO: upgrade system builder and find a way to declare all input as cjs.
   meta: {
-    // auto-detection fails to detect properly here - https://github.com/systemjs/builder/issues/123
-    'rx': {
-      format: 'cjs'
-    },
-    'angular2/src/router/route_definition': {
-      format: 'es6'
-    }
+    'angular2/src/router/route_definition': {format: 'cjs'},
+    'angular2/src/core/directives/observable_list_diff': {format: 'cjs'},
+    'angular2/lifecycle_hooks': {format: 'cjs'}
   }
 };
 
@@ -1056,7 +1082,7 @@ gulp.task('!bundle.js.dev', ['build.js.dev'], function() {
   var devBundleConfig = merge(true, bundleConfig);
   devBundleConfig.paths =
       merge(true, devBundleConfig.paths, {
-       "*": "dist/js/dev/es6/*.js"
+       "*": "dist/js/dev/es5/*.js"
       });
   return bundler.bundle(
       devBundleConfig,
@@ -1075,10 +1101,7 @@ gulp.task('!bundle.js.dev', ['build.js.dev'], function() {
 // WebWorker build
 gulp.task("!bundle.web_worker.js.dev", ["build.js.dev"], function() {
   var devBundleConfig = merge(true, bundleConfig);
-  devBundleConfig.paths =
-      merge(true, devBundleConfig.paths, {
-       "*": "dist/js/dev/es6/*.js"
-      });
+  devBundleConfig.paths = merge(true, devBundleConfig.paths, {"*": "dist/js/dev/es5/*.js"});
   return bundler.bundle(
       devBundleConfig,
       'angular2/web_worker/ui',
@@ -1095,10 +1118,7 @@ gulp.task("!bundle.web_worker.js.dev", ["build.js.dev"], function() {
 
 gulp.task('!router.bundle.js.dev', ['build.js.dev'], function() {
   var devBundleConfig = merge(true, bundleConfig);
-  devBundleConfig.paths =
-    merge(true, devBundleConfig.paths, {
-      "*": "dist/js/dev/es6/*.js"
-    });
+  devBundleConfig.paths = merge(true, devBundleConfig.paths, {"*": "dist/js/dev/es5/*.js"});
   return bundler.bundle(
     devBundleConfig,
     'angular2/router - angular2/angular2',
@@ -1108,10 +1128,7 @@ gulp.task('!router.bundle.js.dev', ['build.js.dev'], function() {
 
 gulp.task('!test.bundle.js.dev', ['build.js.dev'], function() {
   var devBundleConfig = merge(true, bundleConfig);
-  devBundleConfig.paths =
-    merge(true, devBundleConfig.paths, {
-      "*": "dist/js/dev/es6/*.js"
-    });
+  devBundleConfig.paths = merge(true, devBundleConfig.paths, {"*": "dist/js/dev/es5/*.js"});
   return bundler.bundle(
     devBundleConfig,
     'angular2/test + angular2/mock - angular2/angular2',
@@ -1126,16 +1143,15 @@ gulp.task('!test.bundle.js.dev', ['build.js.dev'], function() {
 // see: https://github.com/systemjs/builder (SFX bundles).
 gulp.task('!bundle.js.sfx.dev', ['build.js.dev'], function() {
   var devBundleConfig = merge(true, bundleConfig);
-  devBundleConfig.paths =
-      merge(true, devBundleConfig.paths, {
-       '*': 'dist/js/dev/es6/*.js'
+  devBundleConfig.paths = merge(true, devBundleConfig.paths, {'*': 'dist/js/dev/es5/*.js'});
+  return bundler.bundle(devBundleConfig, 'angular2/angular2_sfx',
+                        './dist/build/angular2.sfx.dev.js', {sourceMaps: true},
+                        /* self-executing */ true)
+      .then(function() {
+        return bundler.bundle(devBundleConfig, 'angular2/http', './dist/build/http.sfx.dev.js',
+                              {sourceMaps: true},
+                              /* self-executing */ true);
       });
-  return bundler.bundle(
-      devBundleConfig,
-      'angular2/angular2_sfx',
-      './dist/build/angular2.sfx.dev.js',
-      { sourceMaps: true },
-      /* self-executing */ true);
 });
 
 gulp.task('!bundle.js.prod.deps', ['!bundle.js.prod'], function() {
@@ -1145,7 +1161,7 @@ gulp.task('!bundle.js.prod.deps', ['!bundle.js.prod'], function() {
       'angular2.js'
     ),
     bundler.modify(
-        ['node_modules/reflect-metadata/Reflect.js', 'node_modules/rx/dist/rx.lite.js', 'dist/build/http.js'],
+        ['node_modules/reflect-metadata/Reflect.js', 'dist/build/http.js'],
         'http.js'
     )).pipe(gulp.dest('dist/js/bundle'));
 });
@@ -1157,7 +1173,7 @@ gulp.task('!bundle.js.min.deps', ['!bundle.js.min'], function() {
       'angular2.min.js'
     ),
     bundler.modify(
-        ['node_modules/reflect-metadata/Reflect.js', 'node_modules/rx/dist/rx.lite.js','dist/build/http.min.js'],
+        ['node_modules/reflect-metadata/Reflect.js', 'dist/build/http.min.js'],
         'http.min.js'
     ))
     .pipe(uglify())
@@ -1165,20 +1181,18 @@ gulp.task('!bundle.js.min.deps', ['!bundle.js.min'], function() {
 });
 
 var JS_DEV_DEPS = [
-    licenseWrap('node_modules/zone.js/LICENSE', true),
-    'node_modules/zone.js/dist/zone-microtask.js',
-    'node_modules/zone.js/dist/long-stack-trace-zone.js',
-    licenseWrap('node_modules/reflect-metadata/LICENSE', true),
-    'node_modules/reflect-metadata/Reflect.js',
-    // traceur-runtime is always first in the bundle
-    licenseWrap('node_modules/traceur/LICENSE', true)
+  licenseWrap('node_modules/zone.js/LICENSE', true),
+  'node_modules/zone.js/dist/zone-microtask.js',
+  'node_modules/zone.js/dist/long-stack-trace-zone.js',
+  licenseWrap('node_modules/reflect-metadata/LICENSE', true),
+  'node_modules/reflect-metadata/Reflect.js'
 ];
 
 // Splice in RX license if rx is in the bundle.
 function insertRXLicense(source) {
-  var n = source.indexOf('System.register("rx"');
+  var n = source.indexOf('System.register("@reactivex/rxjs/dist/cjs/Subject"');
   if (n >= 0) {
-    var rxLicense = licenseWrap('node_modules/rx/license.txt');
+    var rxLicense = licenseWrap('node_modules/@reactivex/rxjs/LICENSE.txt');
     return source.slice(0, n) + rxLicense + source.slice(n);
   } else {
     return source;
@@ -1231,9 +1245,21 @@ gulp.task('clean', ['build/clean.tools', 'build/clean.js', 'build/clean.dart', '
 gulp.task('build', ['build.js', 'build.dart']);
 
 // ------------
+// transform codegen
+gulp.task('lint_protos.dart', function(done) {
+  return proto.lint({
+    dir: 'modules_dart/transform/lib/src/transform/common/model/'
+  }, done);
+});
+
+gulp.task('gen_protos.dart', function(done) {
+  return proto.generate({
+    dir: 'modules_dart/transform/lib/src/transform/common/model/',
+    plugin: 'tools/build/protoc-gen-dart'
+  }, done);
+});
+
 // change detection codegen
-
-
 gulp.task('build.change_detect.dart', function(done) {
   return runSequence('build/packages.dart', '!build/pubget.angular2.dart',
                      '!build/change_detect.dart', done);
@@ -1314,6 +1340,7 @@ process.on('SIGINT', function() {
       process.exit();
     });
   }
+  process.exit();
 });
 
 

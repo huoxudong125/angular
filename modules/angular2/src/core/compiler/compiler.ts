@@ -5,12 +5,12 @@ import {
   isBlank,
   isType,
   isPresent,
-  BaseException,
   normalizeBlank,
   stringify,
   isArray,
   isPromise
 } from 'angular2/src/core/facade/lang';
+import {BaseException} from 'angular2/src/core/facade/exceptions';
 import {Promise, PromiseWrapper} from 'angular2/src/core/facade/async';
 import {ListWrapper, Map, MapWrapper} from 'angular2/src/core/facade/collection';
 
@@ -70,8 +70,7 @@ export class CompilerCache {
   }
 }
 
-/**
- *
+/*
  * ## URL Resolution
  *
  * ```
@@ -88,8 +87,15 @@ export class CompilerCache {
  * var url = viewAnnotation.templateUrl;
  * var componentUrl = componentUrlMapper.getUrl(componentType);
  * var componentResolvedUrl = urlResolver.resolve(appRootUrl.value, componentUrl);
- * var templateResolvedUrl = urlResolver.resolve(componetResolvedUrl, url);
+ * var templateResolvedUrl = urlResolver.resolve(componentResolvedUrl, url);
  * ```
+ */
+/**
+ * Low-level service for compiling {@link Component}s into {@link ProtoViewRef ProtoViews}s, which
+ * can later be used to create and render a Component instance.
+ *
+ * Most applications should instead use higher-level {@link DynamicComponentLoader} service, which
+ * both compiles and instantiates a Component.
  */
 @Injectable()
 export class Compiler {
@@ -127,11 +133,13 @@ export class Compiler {
     return PipeBinding.createFromType(typeOrBinding, meta);
   }
 
-  // Create a hostView as if the compiler encountered <hostcmp></hostcmp>.
-  // Used for bootstrapping.
-  compileInHost(componentTypeOrBinding: Type | Binding): Promise<ProtoViewRef> {
-    var componentType = isType(componentTypeOrBinding) ? componentTypeOrBinding :
-                                                         (<Binding>componentTypeOrBinding).token;
+  /**
+   * Compiles a {@link Component} and returns a promise for this component's {@link ProtoViewRef}.
+   *
+   * Returns `ProtoViewRef` that can be later used to instantiate a component via
+   * {@link ViewContainerRef#createHostView} or {@link AppViewManager#createHostViewInContainer}.
+   */
+  compileInHost(componentType: Type): Promise<ProtoViewRef> {
     var r = wtfStartTimeRange('Compiler#compile()', stringify(componentType));
 
     var hostAppProtoView = this._compilerCache.getHost(componentType);
@@ -139,7 +147,7 @@ export class Compiler {
     if (isPresent(hostAppProtoView)) {
       hostPvPromise = PromiseWrapper.resolve(hostAppProtoView);
     } else {
-      var componentBinding: DirectiveBinding = this._bindDirective(componentTypeOrBinding);
+      var componentBinding: DirectiveBinding = this._bindDirective(componentType);
       Compiler._assertTypeIsComponent(componentBinding);
 
       var directiveMetadata = componentBinding.metadata;

@@ -2,13 +2,13 @@
 
 import {DOM} from 'angular2/src/core/dom/dom_adapter';
 import {StringMapWrapper} from 'angular2/src/core/facade/collection';
-import {global, isFunction} from 'angular2/src/core/facade/lang';
+import {global, isFunction, Math} from 'angular2/src/core/facade/lang';
 import {NgZoneZone} from 'angular2/src/core/zone/ng_zone';
 
 import {bind} from 'angular2/src/core/di';
-import {ExceptionHandler} from 'angular2/src/core/exception_handler';
 
 import {createTestInjector, FunctionWithParamTokens, inject} from './test_injector';
+import {browserDetection} from './utils';
 
 export {inject} from './test_injector';
 
@@ -53,6 +53,7 @@ var jsmXIt = _global.xit;
 
 var runnerStack = [];
 var inIt = false;
+var globalTimeOut = browserDetection.isSlow ? 3000 : jasmine.DEFAULT_TIMEOUT_INTERVAL;
 
 var testBindings;
 
@@ -131,8 +132,9 @@ export function beforeEachBindings(fn): void {
 }
 
 function _it(jsmFn: Function, name: string, testFn: FunctionWithParamTokens | AnyTestFn,
-             timeOut: number): void {
+             testTimeOut: number): void {
   var runner = runnerStack[runnerStack.length - 1];
+  var timeOut = Math.max(globalTimeOut, testTimeOut);
 
   if (testFn instanceof FunctionWithParamTokens) {
     // The test case uses inject(). ie `it('test', inject([AsyncTestCompleter], (async) => { ...
@@ -285,7 +287,7 @@ _global.beforeEach(function() {
     toContainError: function() {
       return {
         compare: function(actual, expectedText) {
-          var errorMessage = ExceptionHandler.exceptionToString(actual);
+          var errorMessage = actual.toString();
           return {
             pass: errorMessage.indexOf(expectedText) > -1,
             get message() { return 'Expected ' + errorMessage + ' to contain ' + expectedText; }
@@ -304,7 +306,7 @@ _global.beforeEach(function() {
               get message() { return "Was expected to throw, but did not throw"; }
             };
           } catch (e) {
-            var errorMessage = ExceptionHandler.exceptionToString(e);
+            var errorMessage = e.toString();
             return {
               pass: errorMessage.indexOf(expectedText) > -1,
               get message() { return 'Expected ' + errorMessage + ' to contain ' + expectedText; }
@@ -368,7 +370,7 @@ export class SpyObject {
       }
     }
   }
-  // Noop so that SpyObject has the smae interface as in Dart
+  // Noop so that SpyObject has the same interface as in Dart
   noSuchMethod(args) {}
 
   spy(name) {
@@ -392,14 +394,12 @@ export class SpyObject {
     return object;
   }
 
-  rttsAssert(value) { return true; }
-
   _createGuinnessCompatibleSpy(name): GuinessCompatibleSpy {
     var newSpy: GuinessCompatibleSpy = <any>jasmine.createSpy(name);
     newSpy.andCallFake = <any>newSpy.and.callFake;
     newSpy.andReturn = <any>newSpy.and.returnValue;
     newSpy.reset = <any>newSpy.calls.reset;
-    // return null by default to satisfy our rtts asserts
+    // revisit return null here (previously needed for rtts_assert).
     newSpy.and.returnValue(null);
     return newSpy;
   }

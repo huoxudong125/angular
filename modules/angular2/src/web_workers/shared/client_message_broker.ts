@@ -16,7 +16,10 @@ export {Type} from "angular2/src/core/facade/lang";
 
 @Injectable()
 export class ClientMessageBrokerFactory {
-  constructor(private _messageBus: MessageBus, protected _serializer: Serializer) {}
+  /**
+   * @private
+   */
+  constructor(private _messageBus: MessageBus, public _serializer: Serializer) {}
 
   /**
    * Initializes the given channel and attaches a new {@link ClientMessageBroker} to it.
@@ -31,7 +34,10 @@ export class ClientMessageBroker {
   private _pending: Map<string, PromiseCompleter<any>> = new Map<string, PromiseCompleter<any>>();
   private _sink: EventEmitter;
 
-  constructor(messageBus: MessageBus, protected _serializer: Serializer, public channel) {
+  /**
+   * @private
+   */
+  constructor(messageBus: MessageBus, public _serializer: Serializer, public channel) {
     this._sink = messageBus.to(channel);
     var source = messageBus.from(channel);
     ObservableWrapper.subscribe(source,

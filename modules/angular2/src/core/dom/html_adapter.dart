@@ -221,9 +221,7 @@ class Html5LibDomAdapter implements DomAdapter {
     return new Element.tag(tagName);
   }
 
-  createTextNode(String text, [doc]) {
-    throw 'not implemented';
-  }
+  createTextNode(String text, [doc]) => new Text(text);
 
   createScriptTag(String attrName, String attrValue, [doc]) {
     throw 'not implemented';
@@ -412,6 +410,10 @@ class Html5LibDomAdapter implements DomAdapter {
     this.setAttribute(element, 'data-${name}', value);
   }
 
+  getComputedStyle(element) {
+    throw 'not implemented';
+  }
+
   String getData(Element element, String name) {
     return this.getAttribute(element, 'data-${name}');
   }
@@ -419,5 +421,28 @@ class Html5LibDomAdapter implements DomAdapter {
   // TODO(tbosch): move this into a separate environment class once we have it
   setGlobalVar(String name, value) {
     // noop on the server
+  }
+
+  requestAnimationFrame(callback) {
+    throw 'not implemented';
+  }
+  cancelAnimationFrame(id) {
+    throw 'not implemented';
+  }
+
+  performanceNow() {
+    throw 'not implemented';
+  }
+
+  getAnimationPrefix() {
+    throw 'not implemented';
+  }
+
+  getTransitionEnd() {
+    throw 'not implemented';
+  }
+
+  supportsAnimation() {
+    throw 'not implemented';
   }
 }

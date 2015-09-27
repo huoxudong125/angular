@@ -1,5 +1,5 @@
 import {EventEmitter} from 'angular2/src/core/facade/async';
-import {BaseException} from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {NgZone} from 'angular2/src/core/zone/ng_zone';
 export {EventEmitter, Observable} from 'angular2/src/core/facade/async';
 
@@ -20,7 +20,7 @@ export /* abstract (with TS 1.6) */ class MessageBus implements MessageBusSource
    * If runInZone is true then the source will emit events inside the angular zone
    * and the sink will buffer messages and send only once the zone exits.
    * if runInZone is false then the source will emit events inside the global zone
-   * and the sink will send messages immediatly.
+   * and the sink will send messages immediately.
    */
   initChannel(channel: string, runInZone: boolean = true): void { throw _abstract(); }
 
@@ -32,7 +32,7 @@ export /* abstract (with TS 1.6) */ class MessageBus implements MessageBusSource
   attachToZone(zone: NgZone): void { throw _abstract(); }
 
   /**
-   * Returns an {@link EventEmitter} that emits every time a messsage
+   * Returns an {@link EventEmitter} that emits every time a message
    * is received on the given channel.
    */
   from(channel: string): EventEmitter { throw _abstract(); }
@@ -62,7 +62,7 @@ export interface MessageBusSource {
   attachToZone(zone: NgZone): void;
 
   /**
-   * Returns an {@link EventEmitter} that emits every time a messsage
+   * Returns an {@link EventEmitter} that emits every time a message
    * is received on the given channel.
    */
   from(channel: string): EventEmitter;
@@ -79,7 +79,7 @@ export interface MessageBusSink {
 
   /**
    * Assigns this sink to the given zone.
-   * Any channels which are initilialized with runInZone set to true will wait for the given zone
+   * Any channels which are initialized with runInZone set to true will wait for the given zone
    * to exit before sending messages.
    */
   attachToZone(zone: NgZone): void;

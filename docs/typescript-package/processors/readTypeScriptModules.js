@@ -150,12 +150,17 @@ module.exports = function readTypeScriptModules(tsParser, modules, getFileInfo,
   function createExportDoc(name, exportSymbol, moduleDoc, basePath, typeChecker) {
     var typeParamString = '';
     var heritageString = '';
+    var typeDefinition = '';
 
     exportSymbol.declarations.forEach(function(decl) {
       var sourceFile = ts.getSourceFileOfNode(decl);
 
       if (decl.typeParameters) {
         typeParamString = '<' + getText(sourceFile, decl.typeParameters) + '>';
+      }
+
+      if (decl.symbol.flags & ts.SymbolFlags.TypeAlias) {
+        typeDefinition = getText(sourceFile, decl.type);
       }
 
       if (decl.heritageClauses) {
@@ -215,6 +220,14 @@ module.exports = function readTypeScriptModules(tsParser, modules, getFileInfo,
     if(exportSymbol.flags & ts.SymbolFlags.Value) {
       exportDoc.returnType = getReturnType(typeChecker, exportSymbol);
     }
+    if (exportSymbol.flags & ts.SymbolFlags.TypeAlias) {
+      exportDoc.typeDefinition = typeDefinition;
+    }
+
+    // Compute the original module name from the relative file path
+    exportDoc.originalModule = exportDoc.fileInfo.relativePath
+        .replace(new RegExp('\.' + exportDoc.fileInfo.extension + '$'), '');
+
     return exportDoc;
   }
 
@@ -351,8 +364,8 @@ module.exports = function readTypeScriptModules(tsParser, modules, getFileInfo,
   function getType(sourceFile, type) {
     var text = getText(sourceFile, type);
     while (text.indexOf(".") >= 0) {
-      // Keep namespaced symbols in Rx
-      if (text.match(/^\s*Rx\./)) break;
+      // Keep namespaced symbols in RxNext
+      if (text.match(/^\s*RxNext\./)) break;
       // handle the case List<thing.stuff> -> List<stuff>
       text = text.replace(/([^.<]*)\.([^>]*)/, "$2");
     }

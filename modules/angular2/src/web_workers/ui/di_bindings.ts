@@ -2,6 +2,8 @@
 // There should be a way to refactor application so that this file is unnecessary. See #3277
 import {Injector, bind, Binding} from "angular2/src/core/di";
 import {DEFAULT_PIPES} from 'angular2/src/core/pipes';
+import {AnimationBuilder} from 'angular2/src/animate/animation_builder';
+import {BrowserDetails} from 'angular2/src/animate/browser_details';
 import {Reflector, reflector} from 'angular2/src/core/reflection/reflection';
 import {
   Parser,
@@ -48,7 +50,7 @@ import {ProtoViewFactory} from 'angular2/src/core/compiler/proto_view_factory';
 import {ViewResolver} from 'angular2/src/core/compiler/view_resolver';
 import {ViewLoader} from 'angular2/src/core/render/dom/compiler/view_loader';
 import {DirectiveResolver} from 'angular2/src/core/compiler/directive_resolver';
-import {ExceptionHandler} from 'angular2/src/core/exception_handler';
+import {ExceptionHandler} from 'angular2/src/core/facade/exceptions';
 import {ComponentUrlMapper} from 'angular2/src/core/compiler/component_url_mapper';
 import {StyleInliner} from 'angular2/src/core/render/dom/compiler/style_inliner';
 import {DynamicComponentLoader} from 'angular2/src/core/compiler/dynamic_component_loader';
@@ -78,7 +80,7 @@ var _rootInjector: Injector;
 // Contains everything that is safe to share between applications.
 var _rootBindings = [bind(Reflector).toValue(reflector)];
 
-// TODO: This code is nearly identitcal to core/application. There should be a way to only write it
+// TODO: This code is nearly identical to core/application. There should be a way to only write it
 // once
 function _injectorBindings(): any[] {
   var bestChangeDetection = new DynamicChangeDetection();
@@ -140,7 +142,9 @@ function _injectorBindings(): any[] {
     MessageBasedXHRImpl,
     MessageBasedRenderer,
     ServiceMessageBrokerFactory,
-    ClientMessageBrokerFactory
+    ClientMessageBrokerFactory,
+    BrowserDetails,
+    AnimationBuilder,
   ];
 }
 

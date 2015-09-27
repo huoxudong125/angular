@@ -2,6 +2,7 @@ import {CONST_EXPR} from 'angular2/src/core/facade/lang';
 import {EventEmitter, ObservableWrapper} from 'angular2/src/core/facade/async';
 import {StringMap} from 'angular2/src/core/facade/collection';
 import {OnChanges, OnDestroy} from 'angular2/lifecycle_hooks';
+import {SimpleChange} from 'angular2/src/core/change_detection';
 import {Query, Directive} from 'angular2/src/core/metadata';
 import {forwardRef, Host, SkipSelf, Binding, Inject, Optional} from 'angular2/src/core/di';
 
@@ -24,24 +25,23 @@ const controlNameBinding =
  *
  * In this example, we create the login and password controls.
  * We can work with each control separately: check its validity, get its value, listen to its
- changes.
+ * changes.
  *
  *  ```
  * @Component({selector: "login-comp"})
  * @View({
  *      directives: [FORM_DIRECTIVES],
  *      template: `
- *              <form #f="form" (submit)='onLogIn(f.value)'>
- *                Login <input type='text' ng-control='login' #l="form">
- *                <div *ng-if="!l.valid">Login is invalid</div>
+ *        <form #f="form" (submit)='onLogIn(f.value)'>
+ *          Login <input type='text' ng-control='login' #l="form">
+ *          <div *ng-if="!l.valid">Login is invalid</div>
  *
- *                Password <input type='password' ng-control='password'>
-
- *                <button type='submit'>Log in!</button>
- *              </form>
+ *          Password <input type='password' ng-control='password'>
+ *          <button type='submit'>Log in!</button>
+ *        </form>
  *      `})
  * class LoginComp {
- *  onLogIn(value) {
+ *  onLogIn(value): void {
  *    // value === {login: 'some login', password: 'some password'}
  *  }
  * }
@@ -54,17 +54,17 @@ const controlNameBinding =
  * @View({
  *      directives: [FORM_DIRECTIVES],
  *      template: `
- *              <form (submit)='onLogIn()'>
- *                Login <input type='text' ng-control='login' [(ng-model)]="credentials.login">
- *                Password <input type='password' ng-control='password'
- [(ng-model)]="credentials.password">
- *                <button type='submit'>Log in!</button>
- *              </form>
+ *        <form (submit)='onLogIn()'>
+ *          Login <input type='text' ng-control='login' [(ng-model)]="credentials.login">
+ *          Password <input type='password' ng-control='password'
+ *                          [(ng-model)]="credentials.password">
+ *          <button type='submit'>Log in!</button>
+ *        </form>
  *      `})
  * class LoginComp {
  *  credentials: {login:string, password:string};
  *
- *  onLogIn() {
+ *  onLogIn(): void {
  *    // this.credentials.login === "some login"
  *    // this.credentials.password === "some password"
  *  }
@@ -94,18 +94,18 @@ export class NgControlName extends NgControl implements OnChanges,
     this.validators = validators;
   }
 
-  onChanges(c: StringMap<string, any>) {
+  onChanges(changes: StringMap<string, SimpleChange>) {
     if (!this._added) {
       this.formDirective.addControl(this);
       this._added = true;
     }
-    if (isPropertyUpdated(c, this.viewModel)) {
+    if (isPropertyUpdated(changes, this.viewModel)) {
       this.viewModel = this.model;
       this.formDirective.updateModel(this, this.model);
     }
   }
 
-  onDestroy() { this.formDirective.removeControl(this); }
+  onDestroy(): void { this.formDirective.removeControl(this); }
 
   viewToModelUpdate(newValue: any): void {
     this.viewModel = newValue;

@@ -1,4 +1,5 @@
-import {isPresent, isBlank, BaseException, StringWrapper} from 'angular2/src/core/facade/lang';
+import {isPresent, isBlank, StringWrapper} from 'angular2/src/core/facade/lang';
+import {BaseException} from 'angular2/src/core/facade/exceptions';
 import {ListWrapper} from 'angular2/src/core/facade/collection';
 import {ChangeDetectionUtil} from './change_detection_util';
 import {ChangeDetectorRef} from './change_detector_ref';
@@ -215,7 +216,7 @@ export class AbstractChangeDetector<T> implements ChangeDetector {
   }
 
   // This is an experimental feature. Works only in Dart.
-  protected observeValue(value: any, index: number): any {
+  observeValue(value: any, index: number): any {
     if (isObservable(value)) {
       this._createArrayToStoreObservables();
       if (isBlank(this.subscriptions[index])) {
@@ -231,7 +232,7 @@ export class AbstractChangeDetector<T> implements ChangeDetector {
   }
 
   // This is an experimental feature. Works only in Dart.
-  protected observeDirective(value: any, index: number): any {
+  observeDirective(value: any, index: number): any {
     if (isObservable(value)) {
       this._createArrayToStoreObservables();
       var arrayIndex = this.numberOfPropertyProtoRecords + index + 2;  // +1 is component
@@ -242,7 +243,7 @@ export class AbstractChangeDetector<T> implements ChangeDetector {
   }
 
   // This is an experimental feature. Works only in Dart.
-  protected observeComponent(value: any): any {
+  observeComponent(value: any): any {
     if (isObservable(value)) {
       this._createArrayToStoreObservables();
       var index = this.numberOfPropertyProtoRecords + 1;
@@ -261,24 +262,23 @@ export class AbstractChangeDetector<T> implements ChangeDetector {
     }
   }
 
-  protected getDirectiveFor(directives: any, index: number): any {
+  getDirectiveFor(directives: any, index: number): any {
     return directives.getDirectiveFor(this.directiveIndices[index]);
   }
 
-  protected getDetectorFor(directives: any, index: number): ChangeDetector {
+  getDetectorFor(directives: any, index: number): ChangeDetector {
     return directives.getDetectorFor(this.directiveIndices[index]);
   }
 
-  protected notifyDispatcher(value: any): void {
+  notifyDispatcher(value: any): void {
     this.dispatcher.notifyOnBinding(this._currentBinding(), value);
   }
 
-  protected logBindingUpdate(value: any): void {
+  logBindingUpdate(value: any): void {
     this.dispatcher.logBindingUpdate(this._currentBinding(), value);
   }
 
-  protected addChange(changes: StringMap<string, any>, oldValue: any,
-                      newValue: any): StringMap<string, any> {
+  addChange(changes: StringMap<string, any>, oldValue: any, newValue: any): StringMap<string, any> {
     if (isBlank(changes)) {
       changes = {};
     }
@@ -294,12 +294,12 @@ export class AbstractChangeDetector<T> implements ChangeDetector {
     throw new ChangeDetectionError(this._currentBinding().debug, exception, stack, context);
   }
 
-  protected throwOnChangeError(oldValue: any, newValue: any): void {
+  throwOnChangeError(oldValue: any, newValue: any): void {
     throw new ExpressionChangedAfterItHasBeenCheckedException(this._currentBinding().debug,
                                                               oldValue, newValue, null);
   }
 
-  protected throwDehydratedError(): void { throw new DehydratedException(); }
+  throwDehydratedError(): void { throw new DehydratedException(); }
 
   private _currentBinding(): BindingTarget {
     return this.bindingTargets[this.propertyBindingIndex];

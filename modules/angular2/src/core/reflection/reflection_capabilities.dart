@@ -5,6 +5,8 @@ import 'types.dart';
 import 'dart:mirrors';
 import 'platform_reflection_capabilities.dart';
 
+var DOT_REGEX = new RegExp('\\.');
+
 class ReflectionCapabilities implements PlatformReflectionCapabilities {
   ReflectionCapabilities([metadataReader]) {}
 
@@ -270,8 +272,13 @@ class ReflectionCapabilities implements PlatformReflectionCapabilities {
   }
 
   List interfaces(type) {
-    ClassMirror classMirror = reflectType(type);
-    return classMirror.superinterfaces.map((si) => si.reflectedType).toList();
+    return _interfacesFromMirror(reflectType(type));
+  }
+
+  List _interfacesFromMirror(classMirror) {
+    return classMirror.superinterfaces.map((si) => si.reflectedType).toList()
+      ..addAll(classMirror.superclass == null ? []
+        : _interfacesFromMirror(classMirror.superclass));
   }
 
   GetterFn getter(String name) {
@@ -314,5 +321,12 @@ class ReflectionCapabilities implements PlatformReflectionCapabilities {
 
   String importUri(Type type) {
     return '${(reflectClass(type).owner as LibraryMirror).uri}';
+  }
+
+  String moduleId(Type type) {
+    var rootUri = currentMirrorSystem().isolate.rootLibrary.uri;
+    var moduleUri = (reflectClass(type).owner as LibraryMirror).uri;
+    var relativeUri = new Uri(pathSegments:moduleUri.pathSegments.sublist(rootUri.pathSegments.length-1)).toString();
+    return relativeUri.substring(0, relativeUri.lastIndexOf('.'));
   }
 }

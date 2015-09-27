@@ -31,7 +31,8 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
          tcb.createAsync(App).then((tc) => {
            tc.detectChanges();
-           expect(asNativeElements(tc.componentViewChildren)).toHaveText('frame(lock)');
+           expect(asNativeElements(tc.debugElement.componentViewChildren))
+               .toHaveText('frame(lock)');
            async.done();
          });
        }));
@@ -41,11 +42,7 @@ export function main() {
 @Component({selector: 'app', viewBindings: [forwardRef(() => Frame)]})
 @View({
   template: `<door><lock></lock></door>`,
-  directives: [
-    bind(forwardRef(() => Door))
-        .toClass(forwardRef(() => Door)),
-    bind(forwardRef(() => Lock)).toClass(forwardRef(() => Lock))
-  ]
+  directives: [forwardRef(() => Door), forwardRef(() => Lock)]
 })
 class App {
 }

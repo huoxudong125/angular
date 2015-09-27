@@ -1,15 +1,6 @@
-/// <reference path="../../typings/rx/rx.d.ts" />
-
-import {
-  ReadyStates,
-  RequestModesOpts,
-  RequestMethods,
-  RequestCacheOpts,
-  RequestCredentialsOpts,
-  ResponseTypes
-} from './enums';
+import {ReadyStates, RequestMethods, ResponseTypes} from './enums';
 import {Headers} from './headers';
-import {BaseException} from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {EventEmitter} from 'angular2/src/core/facade/async';
 import {Request} from './static_request';
 import {URLSearchParamsUnionFixer, URLSearchParams} from './url_search_params';
@@ -42,25 +33,20 @@ export class Connection {
  * Interface for options to construct a Request, based on
  * [RequestInit](https://fetch.spec.whatwg.org/#requestinit) from the Fetch spec.
  */
-// TODO(jeffbcross): Change to type declaration when #3828 is fixed
-// https://github.com/angular/angular/issues/3828
-export interface RequestOptionsArgs {
+export type RequestOptionsArgs = {
   url?: string;
   method?: RequestMethods;
   search?: string | URLSearchParams;
   headers?: Headers;
   // TODO: Support Blob, ArrayBuffer, JSON, URLSearchParams, FormData
   body?: string;
-  mode?: RequestModesOpts;
-  credentials?: RequestCredentialsOpts;
-  cache?: RequestCacheOpts;
 }
 
 /**
  * Interface for options to construct a Response, based on
  * [ResponseInit](https://fetch.spec.whatwg.org/#responseinit) from the Fetch spec.
  */
-export interface ResponseOptionsArgs {
+export type ResponseOptionsArgs = {
   // TODO: Support Blob, ArrayBuffer, JSON
   body?: string | Object | FormData;
   status?: number;

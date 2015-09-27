@@ -5,7 +5,6 @@ var htmlReplace = require('../html-replace');
 var jsReplace = require('../js-replace');
 var path = require('path');
 var stew = require('broccoli-stew');
-var traceur = require('traceur');
 
 import compileWithTypescript from '../broccoli-typescript';
 import destCopy from '../broccoli-dest-copy';
@@ -40,6 +39,7 @@ const kServedPaths = [
   'benchmarks_external/src/static_tree',
 
   // Relative (to /modules) paths to example directories
+  'examples/src/animate',
   'examples/src/benchpress',
   'examples/src/model_driven_forms',
   'examples/src/template_driven_forms',
@@ -84,6 +84,8 @@ module.exports = function makeBrowserTree(options, destinationPath) {
     destDir: '/'
   });
 
+  var rxJs = new Funnel('node_modules/@reactivex', {include: ['**/**'], destDir: '/@reactivex'});
+
   var es5ModulesTree = new Funnel('modules', {
     include: ['**/**'],
     exclude: ['**/*.cjs', 'angular1_router/**', 'benchmarks/e2e_test/**'],
@@ -123,6 +125,7 @@ module.exports = function makeBrowserTree(options, destinationPath) {
     experimentalDecorators: true,
     mapRoot: '',  // force sourcemaps to use relative path
     module: 'CommonJS',
+    moduleResolution: 1 /* classic */,
     noEmitOnError: false,
     rootDir: '.',
     sourceMap: true,
@@ -131,20 +134,17 @@ module.exports = function makeBrowserTree(options, destinationPath) {
   });
 
   // Now we add a few more files to the es6 tree that the es5 tree should not see
-  ['angular2', 'rtts_assert'].forEach(function(destDir) {
-    var extras = new Funnel('tools/build', {files: ['es5build.js'], destDir: destDir});
-    es6Tree = mergeTrees([es6Tree, extras]);
-  });
+  var extras = new Funnel('tools/build', {files: ['es5build.js'], destDir: 'angular2'});
+  es6Tree = mergeTrees([es6Tree, extras]);
 
   var vendorScriptsTree = flatten(new Funnel('.', {
     files: [
+      'node_modules/es6-shim/es6-shim.js',
       'node_modules/zone.js/dist/zone-microtask.js',
       'node_modules/zone.js/dist/long-stack-trace-zone.js',
       'node_modules/systemjs/dist/system.src.js',
-      'node_modules/rx/dist/rx.js',
       'node_modules/base64-js/lib/b64.js',
-      'node_modules/reflect-metadata/Reflect.js',
-      path.relative(projectRootDir, traceur.RUNTIME_PATH)
+      'node_modules/reflect-metadata/Reflect.js'
     ]
   }));
 
@@ -210,8 +210,8 @@ module.exports = function makeBrowserTree(options, destinationPath) {
 
   htmlTree = mergeTrees([htmlTree, scripts, polymer, react]);
 
-  es5Tree = mergeTrees([es5Tree, htmlTree, assetsTree]);
-  es6Tree = mergeTrees([es6Tree, htmlTree, assetsTree]);
+  es5Tree = mergeTrees([es5Tree, htmlTree, assetsTree, rxJs]);
+  es6Tree = mergeTrees([es6Tree, htmlTree, assetsTree, rxJs]);
 
   var mergedTree = mergeTrees([stew.mv(es6Tree, '/es6'), stew.mv(es5Tree, '/es5')]);
 

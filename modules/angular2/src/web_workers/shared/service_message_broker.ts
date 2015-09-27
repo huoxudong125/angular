@@ -12,7 +12,10 @@ import {
 
 @Injectable()
 export class ServiceMessageBrokerFactory {
-  constructor(private _messageBus: MessageBus, protected _serializer: Serializer) {}
+  /**
+   * @private
+   */
+  constructor(private _messageBus: MessageBus, public _serializer: Serializer) {}
 
   /**
    * Initializes the given channel and attaches a new {@link ServiceMessageBroker} to it.
@@ -26,13 +29,16 @@ export class ServiceMessageBrokerFactory {
 /**
  * Helper class for UIComponents that allows components to register methods.
  * If a registered method message is received from the broker on the worker,
- * the UIMessageBroker desererializes its arguments and calls the registered method.
+ * the UIMessageBroker deserializes its arguments and calls the registered method.
  * If that method returns a promise, the UIMessageBroker returns the result to the worker.
  */
 export class ServiceMessageBroker {
   private _sink: EventEmitter;
   private _methods: Map<string, Function> = new Map<string, Function>();
 
+  /**
+   * @private
+   */
   constructor(messageBus: MessageBus, private _serializer: Serializer, public channel) {
     this._sink = messageBus.to(channel);
     var source = messageBus.from(channel);

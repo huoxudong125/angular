@@ -160,6 +160,7 @@ export class RenderDirectiveMetadata {
   hostListeners: Map<string, string>;
   hostProperties: Map<string, string>;
   hostAttributes: Map<string, string>;
+  queries: StringMap<string, any>;
   // group 1: "property" from "[property]"
   // group 2: "event" from "(event)"
   private static _hostRegExp = /^(?:(?:\[([^\]]+)\])|(?:\(([^\)]+)\)))$/g;
@@ -167,7 +168,7 @@ export class RenderDirectiveMetadata {
   constructor({id, selector, compileChildren, events, hostListeners, hostProperties, hostAttributes,
                properties, readAttributes, type, callOnDestroy, callOnChanges, callDoCheck,
                callOnInit, callAfterContentInit, callAfterContentChecked, callAfterViewInit,
-               callAfterViewChecked, changeDetection, exportAs}: {
+               callAfterViewChecked, changeDetection, exportAs, queries}: {
     id?: string,
     selector?: string,
     compileChildren?: boolean,
@@ -187,7 +188,8 @@ export class RenderDirectiveMetadata {
     callAfterViewInit?: boolean,
     callAfterViewChecked?: boolean,
     changeDetection?: ChangeDetectionStrategy,
-    exportAs?: string
+    exportAs?: string,
+    queries?: StringMap<string, any>
   }) {
     this.id = id;
     this.selector = selector;
@@ -209,12 +211,13 @@ export class RenderDirectiveMetadata {
     this.callAfterViewChecked = callAfterViewChecked;
     this.changeDetection = changeDetection;
     this.exportAs = exportAs;
+    this.queries = queries;
   }
 
   static create({id, selector, compileChildren, events, host, properties, readAttributes, type,
                  callOnDestroy, callOnChanges, callDoCheck, callOnInit, callAfterContentInit,
                  callAfterContentChecked, callAfterViewInit, callAfterViewChecked, changeDetection,
-                 exportAs}: {
+                 exportAs, queries}: {
     id?: string,
     selector?: string,
     compileChildren?: boolean,
@@ -232,7 +235,8 @@ export class RenderDirectiveMetadata {
     callAfterViewInit?: boolean,
     callAfterViewChecked?: boolean,
     changeDetection?: ChangeDetectionStrategy,
-    exportAs?: string
+    exportAs?: string,
+    queries?: StringMap<string, any>
   }): RenderDirectiveMetadata {
     let hostListeners = new Map();
     let hostProperties = new Map();
@@ -271,12 +275,13 @@ export class RenderDirectiveMetadata {
       callAfterViewInit: callAfterViewInit,
       callAfterViewChecked: callAfterViewChecked,
       changeDetection: changeDetection,
-      exportAs: exportAs
+      exportAs: exportAs,
+      queries: queries
     });
   }
 }
 
-// An opaque reference to a render proto ivew
+// An opaque reference to a render proto view
 export class RenderProtoViewRef {}
 
 // An opaque reference to a part of a view
@@ -303,6 +308,9 @@ export enum ViewEncapsulation {
    */
   None
 }
+
+export var VIEW_ENCAPSULATION_VALUES =
+    [ViewEncapsulation.Emulated, ViewEncapsulation.Native, ViewEncapsulation.None];
 
 export class ViewDefinition {
   componentId: string;
@@ -340,7 +348,7 @@ export class RenderProtoViewMergeMapping {
               public fragmentCount: number,
               // Mapping from app element index to render element index.
               // Mappings of nested ProtoViews are in depth first order, with all
-              // indices for one ProtoView in a consecuitve block.
+              // indices for one ProtoView in a consecutive block.
               public mappedElementIndices: number[],
               // Number of bound render element.
               // Note: This could be more than the original ones
@@ -348,7 +356,7 @@ export class RenderProtoViewMergeMapping {
               public mappedElementCount: number,
               // Mapping from app text index to render text index.
               // Mappings of nested ProtoViews are in depth first order, with all
-              // indices for one ProtoView in a consecuitve block.
+              // indices for one ProtoView in a consecutive block.
               public mappedTextIndices: number[],
               // Mapping from view index to app element index
               public hostElementIndicesByViewIndex: number[],
@@ -358,7 +366,7 @@ export class RenderProtoViewMergeMapping {
 
 export class RenderCompiler {
   /**
-   * Creats a ProtoViewDto that contains a single nested component with the given componentId.
+   * Creates a ProtoViewDto that contains a single nested component with the given componentId.
    */
   compileHost(directiveMetadata: RenderDirectiveMetadata): Promise<ProtoViewDto> { return null; }
 
@@ -383,6 +391,44 @@ export class RenderCompiler {
     return null;
   }
 }
+
+export interface RenderTemplateCmd { visit(visitor: RenderCommandVisitor, context: any): any; }
+
+export interface RenderBeginCmd extends RenderTemplateCmd {
+  ngContentIndex: number;
+  isBound: boolean;
+}
+
+export interface RenderTextCmd extends RenderBeginCmd { value: string; }
+
+export interface RenderNgContentCmd { ngContentIndex: number; }
+
+export interface RenderBeginElementCmd extends RenderBeginCmd {
+  name: string;
+  attrNameAndValues: string[];
+  eventTargetAndNames: string[];
+}
+
+export interface RenderBeginComponentCmd extends RenderBeginElementCmd {
+  nativeShadow: boolean;
+  templateId: number;
+}
+
+export interface RenderEmbeddedTemplateCmd extends RenderBeginElementCmd {
+  isMerged: boolean;
+  children: RenderTemplateCmd[];
+}
+
+export interface RenderCommandVisitor {
+  visitText(cmd: RenderTextCmd, context: any): any;
+  visitNgContent(cmd: RenderNgContentCmd, context: any): any;
+  visitBeginElement(cmd: RenderBeginElementCmd, context: any): any;
+  visitEndElement(context: any): any;
+  visitBeginComponent(cmd: RenderBeginComponentCmd, context: any): any;
+  visitEndComponent(context: any): any;
+  visitEmbeddedTemplate(cmd: RenderEmbeddedTemplateCmd, context: any): any;
+}
+
 
 export class RenderViewWithFragments {
   constructor(public viewRef: RenderViewRef, public fragmentRefs: RenderFragmentRef[]) {}

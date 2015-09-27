@@ -5,6 +5,7 @@ function DtsSerializer(remap) {
 }
 
 DtsSerializer.prototype = {
+  _initializerRegex: /\s*=[^>][^,}]*/g,
 
   constructor: DtsSerializer,
 
@@ -18,15 +19,21 @@ DtsSerializer.prototype = {
     }
     if (ast.parameters) {
       buffer.push('(');
-      buffer.push(ast.parameters.join(', '));
+      var parameters = ast.parameters;
+      for (var i = 0; i < parameters.length; i++) {
+        parameters[i] = parameters[i].replace(this._initializerRegex, '');
+      }
+      buffer.push(parameters.join(', '));
       buffer.push(')');
     }
-    if (ast.returnType) {
-      buffer.push(': ', ast.returnType);
-    } else if (ast.parameters) {
-      buffer.push(': void');
-    } else {
-      buffer.push(': any');
+    if (!isConstructor(ast)) {
+      if (ast.returnType) {
+        buffer.push(': ', ast.returnType);
+      } else if (ast.parameters) {
+        buffer.push(': void');
+      } else {
+        buffer.push(': any');
+      }
     }
     buffer.push(';\n');
   },
@@ -42,6 +49,8 @@ DtsSerializer.prototype = {
   },
 
   member: function(buffer, ast) {
+    if (ast.private) return;
+
     buffer.push('\n');
     this.comment(buffer, ast.content);
 
@@ -58,6 +67,7 @@ DtsSerializer.prototype = {
     buffer.indent();
     if (ast.newMember) this.member(buffer, ast.newMember);
     if (ast.callMember) this.member(buffer, ast.callMember);
+    if (ast.constructorDoc) this.member(buffer, ast.constructorDoc);
 
     ast.statics.forEach(function(staticMember) {
       this.member(buffer, staticMember);
@@ -102,6 +112,11 @@ DtsSerializer.prototype = {
     this.declaration(buffer, ast);
   },
 
+  let: function(buffer, ast) {
+    buffer.push('let ');
+    this.declaration(buffer, ast);
+  },
+
   const: function(buffer, ast) {
     buffer.push('const ');
     this.declaration(buffer, ast);
@@ -124,6 +139,7 @@ DtsSerializer.prototype = {
         case 'function': this.function(buffer, ast); break;
         case 'enum': this.enum(buffer, ast); break;
         case 'var': this.var(buffer, ast); break;
+        case 'let': this.let(buffer, ast); break;
         case 'const': this.const(buffer, ast); break;
         case 'type-alias': this.typeAlias(buffer, ast); break;
         default: throw new Error("unknown docType: " + ast.docType);
@@ -143,7 +159,6 @@ DtsSerializer.prototype = {
     }
   }
 };
-
 
 function Buffer() {
   this._globalBuffer = [];
@@ -191,7 +206,11 @@ Buffer.prototype = {
   }
 };
 
+function isConstructor(ast) {
+  return ast.parameters && ast.name === "constructor";
+}
 
 module.exports = {
   DtsSerializer: DtsSerializer
 };
+

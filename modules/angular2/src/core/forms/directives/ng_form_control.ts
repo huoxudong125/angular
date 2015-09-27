@@ -1,6 +1,7 @@
 import {CONST_EXPR} from 'angular2/src/core/facade/lang';
 import {EventEmitter, ObservableWrapper} from 'angular2/src/core/facade/async';
 import {OnChanges} from 'angular2/lifecycle_hooks';
+import {SimpleChange} from 'angular2/src/core/change_detection';
 import {Query, Directive} from 'angular2/src/core/metadata';
 import {forwardRef, Binding, Inject, Optional} from 'angular2/src/core/di';
 import {NgControl} from './ng_control';
@@ -12,47 +13,51 @@ const formControlBinding =
     CONST_EXPR(new Binding(NgControl, {toAlias: forwardRef(() => NgFormControl)}));
 
 /**
- * Binds an existing control to a DOM element.
+ * Binds an existing {@link Control} to a DOM element.
  *
- * # Example
+ * ### Example ([live demo](http://plnkr.co/edit/jcQlZ2tTh22BZZ2ucNAT?p=preview))
  *
  * In this example, we bind the control to an input element. When the value of the input element
- * changes, the value of
- * the control will reflect that change. Likewise, if the value of the control changes, the input
- * element reflects that
- * change.
+ * changes, the value of the control will reflect that change. Likewise, if the value of the
+ * control changes, the input element reflects that change.
  *
- *  ```
- * @Component({selector: "login-comp"})
+ *  ```typescript
+ * @Component({
+ *   selector: 'my-app'
+ * })
  * @View({
- *      directives: [FORM_DIRECTIVES],
- *      template: "<input type='text' [ng-form-control]='loginControl'>"
- *      })
- * class LoginComp {
- *  loginControl:Control;
- *
- *  constructor() {
- *    this.loginControl = new Control('');
- *  }
+ *   template: `
+ *     <div>
+ *       <h2>NgFormControl Example</h2>
+ *       <form>
+ *         <p>Element with existing control: <input type="text"
+ * [ng-form-control]="loginControl"></p>
+ *         <p>Value of existing control: {{loginControl.value}}</p>
+ *       </form>
+ *     </div>
+ *   `,
+ *   directives: [CORE_DIRECTIVES, FORM_DIRECTIVES]
+ * })
+ * export class App {
+ *   loginControl: Control = new Control('');
  * }
- *
  *  ```
  *
- * We can also use ng-model to bind a domain model to the form.
+ * # ng-model
  *
- *  ```
+ * We can also use `ng-model` to bind a domain model to the form.
+ *
+ * ### Example ([live demo](http://plnkr.co/edit/yHMLuHO7DNgT8XvtjTDH?p=preview))
+ *
+ *  ```typescript
  * @Component({selector: "login-comp"})
  * @View({
  *      directives: [FORM_DIRECTIVES],
  *      template: "<input type='text' [ng-form-control]='loginControl' [(ng-model)]='login'>"
  *      })
  * class LoginComp {
- *  loginControl:Control;
+ *  loginControl: Control = new Control('');
  *  login:string;
- *
- *  constructor() {
- *    this.loginControl = new Control('');
- *  }
  * }
  *  ```
  */
@@ -76,13 +81,13 @@ export class NgFormControl extends NgControl implements OnChanges {
     this.validators = validators;
   }
 
-  onChanges(c: StringMap<string, any>) {
+  onChanges(changes: StringMap<string, SimpleChange>): void {
     if (!this._added) {
       setUpControl(this.form, this);
       this.form.updateValidity();
       this._added = true;
     }
-    if (isPropertyUpdated(c, this.viewModel)) {
+    if (isPropertyUpdated(changes, this.viewModel)) {
       this.form.updateValue(this.model);
       this.viewModel = this.model;
     }

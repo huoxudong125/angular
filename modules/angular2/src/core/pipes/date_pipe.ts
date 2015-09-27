@@ -17,7 +17,7 @@ import {StringMapWrapper, ListWrapper} from 'angular2/src/core/facade/collection
 import {InvalidPipeArgumentException} from './invalid_pipe_argument_exception';
 
 
-// TODO: move to a global configable location along with other i18n components.
+// TODO: move to a global configurable location along with other i18n components.
 var defaultLocale: string = 'en-US';
 
 /**
@@ -49,7 +49,7 @@ var defaultLocale: string = 'en-US';
  *  | timezone  |   Z    | Z (GMT-8:00) | -                 | -         | -         |
  *
  * In javascript, only the components specified will be respected (not the ordering,
- * punctuations, ...) and details of the the formatting will be dependent on the locale.
+ * punctuations, ...) and details of the formatting will be dependent on the locale.
  * On the other hand in Dart version, you can also include quoted text as well as some extra
  * date/time components such as quarter. For more information see:
  * https://api.dartlang.org/apidocs/channels/stable/dartdoc-viewer/intl/intl.DateFormat.

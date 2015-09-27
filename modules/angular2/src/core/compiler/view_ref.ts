@@ -1,5 +1,6 @@
 import {isPresent} from 'angular2/src/core/facade/lang';
 import * as viewModule from './view';
+import {ChangeDetectorRef} from '../change_detection/change_detector_ref';
 import {RenderViewRef, RenderFragmentRef} from 'angular2/src/core/render/api';
 
 // This is a workaround for privacy in Dart as we don't have library parts
@@ -12,21 +13,38 @@ export function internalProtoView(protoViewRef: ProtoViewRef): viewModule.AppPro
   return isPresent(protoViewRef) ? protoViewRef._protoView : null;
 }
 
-export interface HostViewRef {}
 
 /**
- * A reference to an Angular View.
+ * Represents a View containing a single Element that is the Host Element of a {@link Component}
+ * instance.
  *
- * A View is a fundamental building block of Application UI. A View is the smallest set of
- * elements which are created and destroyed together. A View can change properties on the elements
- * within the view, but it can not change the structure of those elements.
+ * A Host View is created for every dynamically created Component that was compiled on its own (as
+ * opposed to as a part of another Component's Template) via {@link Compiler#compileInHost} or one
+ * of the higher-level APIs: {@link AppViewManager#createRootHostView},
+ * {@link AppViewManager#createHostViewInContainer}, {@link ViewContainerRef#createHostView}.
+ */
+export interface HostViewRef {
+  /**
+   * @private
+   */
+  changeDetectorRef: ChangeDetectorRef;
+}
+
+/**
+ * Represents an Angular View.
  *
- * To change structure of the elements, the Views can contain zero or more {@link ViewContainerRef}s
- * which allow the views to be nested.
+ * <!-- TODO: move the next two paragraphs to the dev guide -->
+ * A View is a fundamental building block of the application UI. It is the smallest grouping of
+ * Elements which are created and destroyed together.
+ *
+ * Properties of elements in a View can change, but the structure (number and order) of elements in
+ * a View cannot. Changing the structure of Elements can only be done by inserting, moving or
+ * removing nested Views via a {@link ViewContainer}. Each View can contain many View Containers.
+ * <!-- /TODO -->
  *
  * ## Example
  *
- * Given this template
+ * Given this template...
  *
  * ```
  * Count: {{items.length}}
@@ -35,9 +53,9 @@ export interface HostViewRef {}
  * </ul>
  * ```
  *
- * The above example we have two {@link ProtoViewRef}s:
+ * ... we have two {@link ProtoViewRef}s:
  *
- * Outter {@link ProtoViewRef}:
+ * Outer {@link ProtoViewRef}:
  * ```
  * Count: {{items.length}}
  * <ul>
@@ -52,7 +70,7 @@ export interface HostViewRef {}
  *
  * Notice that the original template is broken down into two separate {@link ProtoViewRef}s.
  *
- * The outter/inner {@link ProtoViewRef}s are then assembled into views like so:
+ * The outer/inner {@link ProtoViewRef}s are then assembled into views like so:
  *
  * ```
  * <!-- ViewRef: outer-0 -->
@@ -66,42 +84,62 @@ export interface HostViewRef {}
  * ```
  */
 export class ViewRef implements HostViewRef {
+  private _changeDetectorRef: ChangeDetectorRef = null;
+
   /**
    * @private
    */
   constructor(public _view: viewModule.AppView) {}
 
   /**
+   * @private
+   *
    * Return `RenderViewRef`
    */
   get render(): RenderViewRef { return this._view.render; }
 
   /**
+   * @private
+   *
    * Return `RenderFragmentRef`
    */
   get renderFragment(): RenderFragmentRef { return this._view.renderFragment; }
 
   /**
-   * Set local variable in a view.
+   * @private
    *
-   * - `contextName` - Name of the local variable in a view.
-   * - `value` - Value for the local variable in a view.
+   * Return `ChangeDetectorRef`
    */
-  setLocal(contextName: string, value: any): void { this._view.setLocal(contextName, value); }
+  get changeDetectorRef(): ChangeDetectorRef {
+    if (this._changeDetectorRef === null) {
+      this._changeDetectorRef = this._view.changeDetector.ref;
+    }
+    return this._changeDetectorRef;
+  }
+  set changeDetectorRef(value: ChangeDetectorRef) {
+    throw "readonly";  // TODO: https://github.com/Microsoft/TypeScript/issues/12
+  }
+
+  /**
+   * Sets `value` of local variable called `variableName` in this View.
+   */
+  setLocal(variableName: string, value: any): void { this._view.setLocal(variableName, value); }
 }
 
 /**
- * A reference to an Angular ProtoView.
+ * Represents an Angular ProtoView.
  *
- * A ProtoView is a reference to a template for easy creation of views.
- * (See {@link AppViewManager#createViewInContainer `AppViewManager#createViewInContainer`} and
- * {@link AppViewManager#createRootHostView `AppViewManager#createRootHostView`}).
+ * A ProtoView is a prototypical {@link ViewRef View} that is the result of Template compilation and
+ * is used by Angular to efficiently create an instance of this View based on the compiled Template.
  *
- * A `ProtoView` is a factory for creating `View`s.
+ * Most ProtoViews are created and used internally by Angular and you don't need to know about them,
+ * except in advanced use-cases where you compile components yourself via the low-level
+ * {@link Compiler#compileInHost} API.
+ *
  *
  * ## Example
  *
- * Given this template
+ * Given this template:
  *
  * ```
  * Count: {{items.length}}
@@ -110,9 +148,9 @@ export class ViewRef implements HostViewRef {
  * </ul>
  * ```
  *
- * The above example we have two {@link ProtoViewRef}s:
+ * Angular desugars and compiles the template into two ProtoViews:
  *
- * Outter {@link ProtoViewRef}:
+ * Outer ProtoView:
  * ```
  * Count: {{items.length}}
  * <ul>
@@ -120,12 +158,12 @@ export class ViewRef implements HostViewRef {
  * </ul>
  * ```
  *
- * Inner {@link ProtoViewRef}:
+ * Inner ProtoView:
  * ```
  *   <li>{{item}}</li>
  * ```
  *
- * Notice that the original template is broken down into two separate {@link ProtoViewRef}s.
+ * Notice that the original template is broken down into two separate ProtoViews.
  */
 export class ProtoViewRef {
   /**

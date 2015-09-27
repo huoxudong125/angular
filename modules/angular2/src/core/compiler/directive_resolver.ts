@@ -1,5 +1,6 @@
 import {resolveForwardRef, Injectable} from 'angular2/src/core/di';
-import {Type, isPresent, BaseException, stringify} from 'angular2/src/core/facade/lang';
+import {Type, isPresent, stringify} from 'angular2/src/core/facade/lang';
+import {BaseException} from 'angular2/src/core/facade/exceptions';
 import {ListWrapper, StringMap, StringMapWrapper} from 'angular2/src/core/facade/collection';
 import {
   DirectiveMetadata,
@@ -7,11 +8,15 @@ import {
   PropertyMetadata,
   EventMetadata,
   HostBindingMetadata,
-  HostListenerMetadata
+  HostListenerMetadata,
+  ContentChildrenMetadata,
+  ViewChildrenMetadata,
+  ContentChildMetadata,
+  ViewChildMetadata
 } from 'angular2/src/core/metadata';
 import {reflector} from 'angular2/src/core/reflection/reflection';
 
-/**
+/*
  * Resolve a `Type` for {@link DirectiveMetadata}.
  *
  * This interface can be overridden by the application developer to create custom behavior.
@@ -43,6 +48,7 @@ export class DirectiveResolver {
     var properties = [];
     var events = [];
     var host = {};
+    var queries = {};
 
     StringMapWrapper.forEach(propertyMetadata, (metadata: any[], propName: string) => {
       metadata.forEach(a => {
@@ -71,20 +77,39 @@ export class DirectiveResolver {
         }
 
         if (a instanceof HostListenerMetadata) {
-          var args = isPresent(a.args) ? a.args.join(', ') : '';
+          var args = isPresent(a.args) ? (<any[]>a.args).join(', ') : '';
           host[`(${a.eventName})`] = `${propName}(${args})`;
+        }
+
+        if (a instanceof ContentChildrenMetadata) {
+          queries[propName] = a;
+        }
+
+        if (a instanceof ViewChildrenMetadata) {
+          queries[propName] = a;
+        }
+
+        if (a instanceof ContentChildMetadata) {
+          queries[propName] = a;
+        }
+
+        if (a instanceof ViewChildMetadata) {
+          queries[propName] = a;
         }
       });
     });
-    return this._merge(dm, properties, events, host);
+    return this._merge(dm, properties, events, host, queries);
   }
 
   private _merge(dm: DirectiveMetadata, properties: string[], events: string[],
-                 host: StringMap<string, string>): DirectiveMetadata {
+                 host: StringMap<string, string>,
+                 queries: StringMap<string, any>): DirectiveMetadata {
     var mergedProperties =
         isPresent(dm.properties) ? ListWrapper.concat(dm.properties, properties) : properties;
     var mergedEvents = isPresent(dm.events) ? ListWrapper.concat(dm.events, events) : events;
     var mergedHost = isPresent(dm.host) ? StringMapWrapper.merge(dm.host, host) : host;
+    var mergedQueries =
+        isPresent(dm.queries) ? StringMapWrapper.merge(dm.queries, queries) : queries;
 
     if (dm instanceof ComponentMetadata) {
       return new ComponentMetadata({
@@ -94,7 +119,9 @@ export class DirectiveResolver {
         host: mergedHost,
         bindings: dm.bindings,
         exportAs: dm.exportAs,
+        moduleId: dm.moduleId,
         compileChildren: dm.compileChildren,
+        queries: mergedQueries,
         changeDetection: dm.changeDetection,
         viewBindings: dm.viewBindings
       });
@@ -107,7 +134,9 @@ export class DirectiveResolver {
         host: mergedHost,
         bindings: dm.bindings,
         exportAs: dm.exportAs,
-        compileChildren: dm.compileChildren
+        moduleId: dm.moduleId,
+        compileChildren: dm.compileChildren,
+        queries: mergedQueries
       });
     }
   }

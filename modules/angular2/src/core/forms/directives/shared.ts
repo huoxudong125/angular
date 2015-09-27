@@ -1,5 +1,6 @@
 import {ListWrapper, StringMapWrapper} from 'angular2/src/core/facade/collection';
-import {isBlank, BaseException, looseIdentical} from 'angular2/src/core/facade/lang';
+import {isBlank, looseIdentical} from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 
 import {ControlContainer} from './control_container';
 import {NgControl} from './ng_control';
@@ -15,25 +16,25 @@ export function controlPath(name: string, parent: ControlContainer): string[] {
   return p;
 }
 
-export function setUpControl(c: Control, dir: NgControl) {
-  if (isBlank(c)) _throwError(dir, "Cannot find control");
+export function setUpControl(control: Control, dir: NgControl): void {
+  if (isBlank(control)) _throwError(dir, "Cannot find control");
   if (isBlank(dir.valueAccessor)) _throwError(dir, "No value accessor for");
 
-  c.validator = Validators.compose([c.validator, dir.validator]);
-  dir.valueAccessor.writeValue(c.value);
+  control.validator = Validators.compose([control.validator, dir.validator]);
+  dir.valueAccessor.writeValue(control.value);
 
   // view -> model
   dir.valueAccessor.registerOnChange(newValue => {
     dir.viewToModelUpdate(newValue);
-    c.updateValue(newValue, {emitModelToViewChange: false});
-    c.markAsDirty();
+    control.updateValue(newValue, {emitModelToViewChange: false});
+    control.markAsDirty();
   });
 
   // model -> view
-  c.registerOnChange(newValue => dir.valueAccessor.writeValue(newValue));
+  control.registerOnChange(newValue => dir.valueAccessor.writeValue(newValue));
 
   // touched
-  dir.valueAccessor.registerOnTouched(() => c.markAsTouched());
+  dir.valueAccessor.registerOnTouched(() => control.markAsTouched());
 }
 
 function _throwError(dir: NgControl, message: string): void {

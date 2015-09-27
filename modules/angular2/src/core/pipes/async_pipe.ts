@@ -1,4 +1,4 @@
-import {isBlank, isPresent, isPromise, CONST, BaseException} from 'angular2/src/core/facade/lang';
+import {isBlank, isPresent, isPromise, CONST} from 'angular2/src/core/facade/lang';
 import {Promise, ObservableWrapper, Observable} from 'angular2/src/core/facade/async';
 import {Pipe} from 'angular2/src/core/metadata';
 import {Injectable} from 'angular2/src/core/di';
@@ -36,27 +36,28 @@ var _observableStrategy = new ObservableStrategy();
 
 
 /**
- * Implements async bindings to Observable and Promise.
+ * The `async` pipe subscribes to an Observable or Promise and returns the latest value it has
+ * emitted.
+ * When a new value is emitted, the `async` pipe marks the component to be checked for changes.
  *
  * # Example
+ * The example below binds the `time` Observable to the view. Every 500ms, the `time` Observable
+ * updates the view with the current time.
  *
- * In this example we bind the description observable to the DOM. The async pipe will convert an
- *observable to the
- * latest value it emitted. It will also request a change detection check when a new value is
- *emitted.
- *
- *  ```
+ * ```
+ * import {Observable} from 'angular2/core';
  * @Component({
- *   selector: "task-cmp",
- *   changeDetection: ChangeDetectionStrategy.OnPush
+ *   selector: "task-cmp"
  * })
  * @View({
- *   template: "Task Description {{ description | async }}"
+ *   template: "Time: {{ time | async }}"
  * })
  * class Task {
- *  description:Observable<string>;
+ *   time = new Observable<number>(observer => {
+ *     setInterval(_ =>
+ *       observer.next(new Date().getTime()), 500);
+ *   });
  * }
- *
  * ```
  */
 @Pipe({name: 'async', pure: false})

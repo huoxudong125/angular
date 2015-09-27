@@ -121,7 +121,8 @@ void allTests() {
     it('should parse changeDetection.', () async {
       var metadata = await readMetadata('directive_metadata_extractor/'
           'directive_metadata_files/changeDetection.ng_deps.dart');
-      expect(metadata.changeDetection).toEqual(ChangeDetectionStrategy.CheckOnce);
+      expect(metadata.changeDetection)
+          .toEqual(ChangeDetectionStrategy.CheckOnce);
     });
 
     it('should fail when a class is annotated with multiple Directives.',
@@ -183,6 +184,20 @@ void allTests() {
           reader,
           new AssetId('a',
               'directive_metadata_extractor/recursive_export_files/foo.ng_deps.dart'));
+      expect(extracted.types).toContain('FooComponent');
+      expect(extracted.types).toContain('BarComponent');
+      expect(extracted.types).toContain('BazComponent');
+
+      expect(extracted.types['FooComponent'].selector).toEqual('[foo]');
+      expect(extracted.types['BarComponent'].selector).toEqual('[bar]');
+      expect(extracted.types['BazComponent'].selector).toEqual('[baz]');
+    });
+
+    it('should handle `DirectiveMetadata` export cycles gracefully.', () async {
+      var extracted = await extractDirectiveMetadata(
+          reader,
+          new AssetId('a',
+              'directive_metadata_extractor/export_cycle_files/baz.ng_deps.dart'));
       expect(extracted.types).toContain('FooComponent');
       expect(extracted.types).toContain('BarComponent');
       expect(extracted.types).toContain('BazComponent');

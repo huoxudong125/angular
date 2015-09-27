@@ -1,11 +1,5 @@
-import {
-  Type,
-  isPresent,
-  isFunction,
-  global,
-  stringify,
-  BaseException
-} from 'angular2/src/core/facade/lang';
+import {Type, isPresent, isFunction, global, stringify} from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 import {ListWrapper} from 'angular2/src/core/facade/collection';
 import {GetterFn, SetterFn, MethodFn} from './types';
 import {PlatformReflectionCapabilities} from 'platform_reflection_capabilities';
@@ -174,4 +168,6 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
 
   // There is not a concept of import uri in Js, but this is useful in developing Dart applications.
   importUri(type: Type): string { return './'; }
+
+  moduleId(type: Type): string { return './'; }
 }

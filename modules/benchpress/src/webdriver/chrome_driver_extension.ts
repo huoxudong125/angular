@@ -6,9 +6,9 @@ import {
   isBlank,
   RegExpWrapper,
   StringWrapper,
-  BaseException,
   NumberWrapper
 } from 'angular2/src/core/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 
 import {WebDriverExtension, PerfLogFeatures} from '../web_driver_extension';
 import {WebDriverAdapter} from '../web_driver_adapter';
@@ -183,7 +183,8 @@ export class ChromeDriverExtension extends WebDriverExtension {
       return normalizeEvent(event, {'name': 'gc', 'args': normArgs});
     } else if (this._isEvent(categories, name, ['devtools.timeline', 'v8'], 'FunctionCall') &&
                (isBlank(args) || isBlank(args['data']) ||
-                !StringWrapper.equals(args['data']['scriptName'], 'InjectedScript'))) {
+                (!StringWrapper.equals(args['data']['scriptName'], 'InjectedScript') &&
+                 !StringWrapper.equals(args['data']['scriptName'], '')))) {
       return normalizeEvent(event, {'name': 'script'});
     } else if (this._isEvent(categories, name, ['devtools.timeline', 'blink'],
                              'UpdateLayoutTree')) {

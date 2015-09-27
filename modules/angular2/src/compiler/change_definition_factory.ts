@@ -14,7 +14,7 @@ import {
   ASTWithSource
 } from 'angular2/src/core/change_detection/change_detection';
 
-import {DirectiveMetadata, TypeMetadata} from './api';
+import {CompileDirectiveMetadata, CompileTypeMetadata} from './directive_metadata';
 import {
   TemplateAst,
   ElementAst,
@@ -32,55 +32,54 @@ import {
   AttrAst,
   TextAst
 } from './template_ast';
+import {LifecycleHooks} from 'angular2/src/core/compiler/interfaces';
 
 export function createChangeDetectorDefinitions(
-    componentType: TypeMetadata, componentStrategy: ChangeDetectionStrategy,
+    componentType: CompileTypeMetadata, componentStrategy: ChangeDetectionStrategy,
     genConfig: ChangeDetectorGenConfig, parsedTemplate: TemplateAst[]): ChangeDetectorDefinition[] {
-  var visitor = new ProtoViewVisitor(componentStrategy);
+  var pvVisitors = [];
+  var visitor = new ProtoViewVisitor(null, pvVisitors, componentStrategy);
   templateVisitAll(visitor, parsedTemplate);
-  return createChangeDefinitions(visitor.allProtoViews, componentType, genConfig);
+  return createChangeDefinitions(pvVisitors, componentType, genConfig);
 }
 
 class ProtoViewVisitor implements TemplateAstVisitor {
-  viewCount: number = 0;
-  protoViewStack: ProtoViewVisitorData[] = [];
-  allProtoViews: ProtoViewVisitorData[] = [];
+  viewIndex: number;
+  boundTextCount: number = 0;
+  boundElementCount: number = 0;
+  variableNames: string[] = [];
+  bindingRecords: BindingRecord[] = [];
+  eventRecords: BindingRecord[] = [];
+  directiveRecords: DirectiveRecord[] = [];
 
-  constructor(componentStrategy: ChangeDetectionStrategy) {
-    this._beginProtoView(new ProtoViewVisitorData(null, componentStrategy, this.viewCount++));
-  }
-
-  private _beginProtoView(data: ProtoViewVisitorData) {
-    this.protoViewStack.push(data);
-    this.allProtoViews.push(data);
-  }
-
-  get currentProtoView(): ProtoViewVisitorData {
-    return this.protoViewStack[this.protoViewStack.length - 1];
+  constructor(public parent: ProtoViewVisitor, public allVisitors: ProtoViewVisitor[],
+              public strategy: ChangeDetectionStrategy) {
+    this.viewIndex = allVisitors.length;
+    allVisitors.push(this);
   }
 
   visitEmbeddedTemplate(ast: EmbeddedTemplateAst, context: any): any {
-    this.currentProtoView.boundElementCount++;
-    templateVisitAll(this, ast.directives);
+    this.boundElementCount++;
+    for (var i = 0; i < ast.directives.length; i++) {
+      ast.directives[i].visit(this, i);
+    }
 
-    this.viewCount++;
-    this._beginProtoView(new ProtoViewVisitorData(
-        this.currentProtoView, ChangeDetectionStrategy.Default, this.viewCount - 1));
+    var childVisitor =
+        new ProtoViewVisitor(this, this.allVisitors, ChangeDetectionStrategy.Default);
     // Attention: variables present on an embedded template count towards
     // the embedded template and not the template anchor!
-    templateVisitAll(this, ast.vars);
-    templateVisitAll(this, ast.children);
-    this.protoViewStack.pop();
+    templateVisitAll(childVisitor, ast.vars);
+    templateVisitAll(childVisitor, ast.children);
     return null;
   }
 
   visitElement(ast: ElementAst, context: any): any {
     if (ast.isBound()) {
-      this.currentProtoView.boundElementCount++;
+      this.boundElementCount++;
     }
     templateVisitAll(this, ast.properties, null);
     templateVisitAll(this, ast.events);
-    templateVisitAll(this, ast.vars);
+    templateVisitAll(this, ast.exportAsVars);
     for (var i = 0; i < ast.directives.length; i++) {
       ast.directives[i].visit(this, i);
     }
@@ -91,22 +90,21 @@ class ProtoViewVisitor implements TemplateAstVisitor {
   visitNgContent(ast: NgContentAst, context: any): any { return null; }
 
   visitVariable(ast: VariableAst, context: any): any {
-    this.currentProtoView.variableNames.push(ast.name);
+    this.variableNames.push(ast.name);
     return null;
   }
 
   visitEvent(ast: BoundEventAst, directiveRecord: DirectiveRecord): any {
     var bindingRecord =
         isPresent(directiveRecord) ?
-            BindingRecord.createForHostEvent(ast.handler, ast.name, directiveRecord) :
-            BindingRecord.createForEvent(ast.handler, ast.name,
-                                         this.currentProtoView.boundElementCount - 1);
-    this.currentProtoView.eventRecords.push(bindingRecord);
+            BindingRecord.createForHostEvent(ast.handler, ast.fullName, directiveRecord) :
+            BindingRecord.createForEvent(ast.handler, ast.fullName, this.boundElementCount - 1);
+    this.eventRecords.push(bindingRecord);
     return null;
   }
 
   visitElementProperty(ast: BoundElementPropertyAst, directiveRecord: DirectiveRecord): any {
-    var boundElementIndex = this.currentProtoView.boundElementCount - 1;
+    var boundElementIndex = this.boundElementCount - 1;
     var dirIndex = isPresent(directiveRecord) ? directiveRecord.directiveIndex : null;
     var bindingRecord;
     if (ast.type === PropertyBindingType.Property) {
@@ -130,37 +128,38 @@ class ProtoViewVisitor implements TemplateAstVisitor {
               BindingRecord.createForHostStyle(dirIndex, ast.value, ast.name, ast.unit) :
               BindingRecord.createForElementStyle(ast.value, boundElementIndex, ast.name, ast.unit);
     }
-    this.currentProtoView.bindingRecords.push(bindingRecord);
+    this.bindingRecords.push(bindingRecord);
     return null;
   }
   visitAttr(ast: AttrAst, context: any): any { return null; }
   visitBoundText(ast: BoundTextAst, context: any): any {
-    var boundTextIndex = this.currentProtoView.boundTextCount++;
-    this.currentProtoView.bindingRecords.push(
-        BindingRecord.createForTextNode(ast.value, boundTextIndex));
+    var boundTextIndex = this.boundTextCount++;
+    this.bindingRecords.push(BindingRecord.createForTextNode(ast.value, boundTextIndex));
     return null;
   }
   visitText(ast: TextAst, context: any): any { return null; }
   visitDirective(ast: DirectiveAst, directiveIndexAsNumber: number): any {
-    var directiveIndex =
-        new DirectiveIndex(this.currentProtoView.boundElementCount - 1, directiveIndexAsNumber);
+    var directiveIndex = new DirectiveIndex(this.boundElementCount - 1, directiveIndexAsNumber);
     var directiveMetadata = ast.directive;
-    var changeDetectionMeta = directiveMetadata.changeDetection;
     var directiveRecord = new DirectiveRecord({
       directiveIndex: directiveIndex,
-      callAfterContentInit: changeDetectionMeta.callAfterContentInit,
-      callAfterContentChecked: changeDetectionMeta.callAfterContentChecked,
-      callAfterViewInit: changeDetectionMeta.callAfterViewInit,
-      callAfterViewChecked: changeDetectionMeta.callAfterViewChecked,
-      callOnChanges: changeDetectionMeta.callOnChanges,
-      callDoCheck: changeDetectionMeta.callDoCheck,
-      callOnInit: changeDetectionMeta.callOnInit,
-      changeDetection: changeDetectionMeta.changeDetection
+      callAfterContentInit:
+          directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.AfterContentInit) !== -1,
+      callAfterContentChecked:
+          directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.AfterContentChecked) !== -1,
+      callAfterViewInit:
+          directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.AfterViewInit) !== -1,
+      callAfterViewChecked:
+          directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.AfterViewChecked) !== -1,
+      callOnChanges: directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.OnChanges) !== -1,
+      callDoCheck: directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.DoCheck) !== -1,
+      callOnInit: directiveMetadata.lifecycleHooks.indexOf(LifecycleHooks.OnInit) !== -1,
+      changeDetection: directiveMetadata.changeDetection
     });
-    this.currentProtoView.directiveRecords.push(directiveRecord);
+    this.directiveRecords.push(directiveRecord);
 
     templateVisitAll(this, ast.properties, directiveRecord);
-    var bindingRecords = this.currentProtoView.bindingRecords;
+    var bindingRecords = this.bindingRecords;
     if (directiveRecord.callOnChanges) {
       bindingRecords.push(BindingRecord.createDirectiveOnChanges(directiveRecord));
     }
@@ -172,45 +171,36 @@ class ProtoViewVisitor implements TemplateAstVisitor {
     }
     templateVisitAll(this, ast.hostProperties, directiveRecord);
     templateVisitAll(this, ast.hostEvents, directiveRecord);
+    templateVisitAll(this, ast.exportAsVars);
     return null;
   }
   visitDirectiveProperty(ast: BoundDirectivePropertyAst, directiveRecord: DirectiveRecord): any {
     // TODO: these setters should eventually be created by change detection, to make
     // it monomorphic!
     var setter = reflector.setter(ast.directiveName);
-    this.currentProtoView.bindingRecords.push(
+    this.bindingRecords.push(
         BindingRecord.createForDirective(ast.value, ast.directiveName, setter, directiveRecord));
     return null;
   }
 }
 
-class ProtoViewVisitorData {
-  boundTextCount: number = 0;
-  boundElementCount: number = 0;
-  variableNames: string[] = [];
-  bindingRecords: BindingRecord[] = [];
-  eventRecords: BindingRecord[] = [];
-  directiveRecords: DirectiveRecord[] = [];
-  constructor(public parent: ProtoViewVisitorData, public strategy: ChangeDetectionStrategy,
-              public viewIndex: number) {}
-}
 
-function createChangeDefinitions(pvDatas: ProtoViewVisitorData[], componentType: TypeMetadata,
+function createChangeDefinitions(pvVisitors: ProtoViewVisitor[], componentType: CompileTypeMetadata,
                                  genConfig: ChangeDetectorGenConfig): ChangeDetectorDefinition[] {
-  var pvVariableNames = _collectNestedProtoViewsVariableNames(pvDatas);
-  return pvDatas.map(pvData => {
-    var viewType = pvData.viewIndex === 0 ? 'component' : 'embedded';
-    var id = _protoViewId(componentType, pvData.viewIndex, viewType);
-    return new ChangeDetectorDefinition(id, pvData.strategy, pvVariableNames[pvData.viewIndex],
-                                        pvData.bindingRecords, pvData.eventRecords,
-                                        pvData.directiveRecords, genConfig);
+  var pvVariableNames = _collectNestedProtoViewsVariableNames(pvVisitors);
+  return pvVisitors.map(pvVisitor => {
+    var viewType = pvVisitor.viewIndex === 0 ? 'component' : 'embedded';
+    var id = _protoViewId(componentType, pvVisitor.viewIndex, viewType);
+    return new ChangeDetectorDefinition(
+        id, pvVisitor.strategy, pvVariableNames[pvVisitor.viewIndex], pvVisitor.bindingRecords,
+        pvVisitor.eventRecords, pvVisitor.directiveRecords, genConfig);
 
   });
 }
 
-function _collectNestedProtoViewsVariableNames(pvs: ProtoViewVisitorData[]): string[][] {
-  var nestedPvVariableNames: string[][] = ListWrapper.createFixedSize(pvs.length);
-  pvs.forEach((pv) => {
+function _collectNestedProtoViewsVariableNames(pvVisitors: ProtoViewVisitor[]): string[][] {
+  var nestedPvVariableNames: string[][] = ListWrapper.createFixedSize(pvVisitors.length);
+  pvVisitors.forEach((pv) => {
     var parentVariableNames: string[] =
         isPresent(pv.parent) ? nestedPvVariableNames[pv.parent.viewIndex] : [];
     nestedPvVariableNames[pv.viewIndex] = parentVariableNames.concat(pv.variableNames);
@@ -219,6 +209,7 @@ function _collectNestedProtoViewsVariableNames(pvs: ProtoViewVisitorData[]): str
 }
 
 
-function _protoViewId(hostComponentType: TypeMetadata, pvIndex: number, viewType: string): string {
-  return `${hostComponentType.typeName}_${viewType}_${pvIndex}`;
+function _protoViewId(hostComponentType: CompileTypeMetadata, pvIndex: number, viewType: string):
+    string {
+  return `${hostComponentType.name}_${viewType}_${pvIndex}`;
 }

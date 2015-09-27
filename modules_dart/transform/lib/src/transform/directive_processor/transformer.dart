@@ -21,7 +21,7 @@ import 'rewriter.dart';
 ///
 /// This transformer is the first phase in a two-phase transform. It should
 /// be followed by {@link DirectiveLinker}.
-class DirectiveProcessor extends Transformer {
+class DirectiveProcessor extends Transformer implements DeclaringTransformer {
   final TransformerOptions options;
 
   DirectiveProcessor(this.options);
@@ -29,23 +29,34 @@ class DirectiveProcessor extends Transformer {
   @override
   bool isPrimary(AssetId id) => id.extension.endsWith('dart');
 
+  /// We don't always output these, but providing a superset of our outputs
+  /// should be safe. Barback will just have to wait until `apply` finishes to
+  /// determine that one or the other will not be emitted.
+  @override
+  declareOutputs(DeclaringTransform transform) {
+    transform.declareOutput(
+        transform.primaryId.changeExtension(ALIAS_EXTENSION));
+    transform.declareOutput(
+        transform.primaryId.changeExtension(DEPS_EXTENSION));
+  }
+
   @override
   Future apply(Transform transform) async {
     await log.initZoned(transform, () async {
       var asset = transform.primaryInput;
       var reader = new AssetReader.fromTransform(transform);
       var ngMeta = new NgMeta.empty();
-      var ngDepsSrc = await createNgDeps(
+      var ngDepsModel = await createNgDeps(
           reader, asset.id, options.annotationMatcher, ngMeta,
           inlineViews: options.inlineViews);
-      if (ngDepsSrc != null && ngDepsSrc.isNotEmpty) {
+      if (ngDepsModel != null) {
         var ngDepsAssetId =
-            transform.primaryInput.id.changeExtension(DEPS_EXTENSION);
+            transform.primaryInput.id.changeExtension(DEPS_JSON_EXTENSION);
         if (await transform.hasInput(ngDepsAssetId)) {
           log.logger.error('Clobbering ${ngDepsAssetId}. '
               'This probably will not end well');
         }
-        transform.addOutput(new Asset.fromString(ngDepsAssetId, ngDepsSrc));
+        transform.addOutput(new Asset.fromString(ngDepsAssetId, ngDepsModel.writeToJson()));
       }
       if (!ngMeta.isEmpty) {
         var ngAliasesId =

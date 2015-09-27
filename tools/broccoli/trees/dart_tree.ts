@@ -14,14 +14,14 @@ import dartfmt from '../broccoli-dartfmt';
 import replace from '../broccoli-replace';
 
 var global_excludes = [
-  'rtts_assert/**/*',
   'angular2/http*',
   'angular2/src/http/**/*',
   'angular2/test/http/**/*',
   'examples/src/http/**/*',
   'examples/test/http/**/*',
   'examples/src/jsonp/**/*',
-  'examples/test/jsonp/**/*'
+  'examples/test/jsonp/**/*',
+  'upgrade/**/*'
 ];
 
 
@@ -57,7 +57,6 @@ function stripModulePrefix(relativePath: string): string {
 }
 
 function getSourceTree() {
-  // Transpile everything in 'modules' except for rtts_assertions.
   var tsInputTree = modulesFunnel(['**/*.js', '**/*.ts', '**/*.dart'], ['angular1_router/**/*']);
   var transpiled = ts2dart(tsInputTree, {
     generateLibraryName: true,
@@ -149,8 +148,7 @@ function getDocsTree() {
   var licenses = new MultiCopy('', {
     srcPath: 'LICENSE',
     targetPatterns: ['modules/*'],
-    exclude:
-        ['*/rtts_assert', '*/angular2/src/http', '*/upgrade', '*/angular1_router']  // Not in dart.
+    exclude: ['*/angular2/src/http', '*/upgrade', '*/angular1_router']  // Not in dart.
   });
   licenses = stew.rename(licenses, stripModulePrefix);
 
