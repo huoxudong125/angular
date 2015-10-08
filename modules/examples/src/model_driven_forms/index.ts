@@ -18,7 +18,7 @@ import {RegExpWrapper, print, isPresent} from 'angular2/src/core/facade/lang';
 /**
  * Custom validator.
  */
-function creditCardValidator(c): StringMap<string, boolean> {
+function creditCardValidator(c): {[key: string]: boolean} {
   if (isPresent(c.value) && RegExpWrapper.test(/^\d{16}$/g, c.value)) {
     return null;
   } else {
@@ -41,7 +41,7 @@ function creditCardValidator(c): StringMap<string, boolean> {
  * actual error message.
  * To make it simple, we are using a simple map here.
  */
-@Component({selector: 'show-error', properties: ['controlPath: control', 'errorTypes: errors']})
+@Component({selector: 'show-error', inputs: ['controlPath: control', 'errorTypes: errors']})
 @View({
   template: `
     <span *ng-if="errorMessage !== null">{{errorMessage}}</span>

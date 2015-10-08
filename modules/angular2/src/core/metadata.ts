@@ -17,8 +17,8 @@ export {
   ComponentMetadata,
   DirectiveMetadata,
   PipeMetadata,
-  PropertyMetadata,
-  EventMetadata,
+  InputMetadata,
+  OutputMetadata,
   HostBindingMetadata,
   HostListenerMetadata
 } from './metadata/directives';
@@ -39,8 +39,8 @@ import {
   ComponentMetadata,
   DirectiveMetadata,
   PipeMetadata,
-  PropertyMetadata,
-  EventMetadata,
+  InputMetadata,
+  OutputMetadata,
   HostBindingMetadata,
   HostListenerMetadata
 } from './metadata/directives';
@@ -147,25 +147,27 @@ export interface ViewDecorator extends TypeDecorator {
 export interface DirectiveFactory {
   (obj: {
     selector?: string,
+    inputs?: string[],
+    outputs?: string[],
     properties?: string[],
     events?: string[],
-    host?: StringMap<string, string>,
+    host?: {[key: string]: string},
     bindings?: any[],
     exportAs?: string,
     moduleId?: string,
-    compileChildren?: boolean,
-    queries?: StringMap<string, any>
+    queries?: {[key: string]: any}
   }): DirectiveDecorator;
   new (obj: {
     selector?: string,
+    inputs?: string[],
+    outputs?: string[],
     properties?: string[],
     events?: string[],
-    host?: StringMap<string, string>,
+    host?: {[key: string]: string},
     bindings?: any[],
     exportAs?: string,
     moduleId?: string,
-    compileChildren?: boolean,
-    queries?: StringMap<string, any>
+    queries?: {[key: string]: any}
   }): DirectiveMetadata;
 }
 
@@ -215,29 +217,45 @@ export interface DirectiveFactory {
 export interface ComponentFactory {
   (obj: {
     selector?: string,
+    inputs?: string[],
+    outputs?: string[],
     properties?: string[],
     events?: string[],
-    host?: StringMap<string, string>,
+    host?: {[key: string]: string},
     bindings?: any[],
     exportAs?: string,
     moduleId?: string,
-    compileChildren?: boolean,
-    queries?: StringMap<string, any>,
+    queries?: {[key: string]: any},
     viewBindings?: any[],
     changeDetection?: ChangeDetectionStrategy,
+    templateUrl?: string,
+    template?: string,
+    styleUrls?: string[],
+    styles?: string[],
+    directives?: Array<Type | any[]>,
+    pipes?: Array<Type | any[]>,
+    encapsulation?: ViewEncapsulation
   }): ComponentDecorator;
   new (obj: {
     selector?: string,
+    inputs?: string[],
+    outputs?: string[],
     properties?: string[],
     events?: string[],
-    host?: StringMap<string, string>,
+    host?: {[key: string]: string},
     bindings?: any[],
     exportAs?: string,
     moduleId?: string,
-    compileChildren?: boolean,
-    queries?: StringMap<string, any>,
+    queries?: {[key: string]: any},
     viewBindings?: any[],
     changeDetection?: ChangeDetectionStrategy,
+    templateUrl?: string,
+    template?: string,
+    styleUrls?: string[],
+    styles?: string[],
+    directives?: Array<Type | any[]>,
+    pipes?: Array<Type | any[]>,
+    encapsulation?: ViewEncapsulation
   }): ComponentMetadata;
 }
 
@@ -452,39 +470,27 @@ export interface PipeFactory {
 }
 
 /**
- * {@link PropertyMetadata} factory for creating decorators.
+ * {@link InputMetadata} factory for creating decorators.
  *
- * See {@link PropertyMetadata}.
+ * See {@link InputMetadata}.
  */
-export interface PropertyFactory {
+export interface InputFactory {
   (bindingPropertyName?: string): any;
   new (bindingPropertyName?: string): any;
 }
 
 /**
- * {@link EventMetadata} factory for creating decorators.
+ * {@link OutputMetadata} factory for creating decorators.
  *
- * See {@link EventMetadata}.
+ * See {@link OutputMetadata}.
  */
-export interface EventFactory {
+export interface OutputFactory {
   (bindingPropertyName?: string): any;
   new (bindingPropertyName?: string): any;
 }
 
 /**
- * {@link HostBindingMetadata} factory for creating decorators.
- *
- * ## Example as TypeScript Decorator
- *
- * ```
- * @Directive({
- *   selector: 'sample-dir'
- * })
- * class SampleDir {
- *   @HostBinding() prop1; // Same as @HostBinding('prop1') prop1;
- *   @HostBinding("el-prop") prop1;
- * }
- * ```
+ * {@link HostBindingMetadata} factory function.
  */
 export interface HostBindingFactory {
   (hostPropertyName?: string): any;
@@ -492,18 +498,7 @@ export interface HostBindingFactory {
 }
 
 /**
- * {@link HostListenerMetadata} factory for creating decorators.
- *
- * ## Example as TypeScript Decorator
- *
- * ```
- * @Directive({
- *   selector: 'sample-dir'
- * })
- * class SampleDir {
- *   @HostListener("change", ['$event.target.value']) onChange(value){}
- * }
- * ```
+ * {@link HostListenerMetadata} factory function.
  */
 export interface HostListenerFactory {
   (eventName: string, args?: string[]): any;
@@ -567,18 +562,18 @@ export var ViewQuery: QueryFactory = makeParamDecorator(ViewQueryMetadata);
 export var Pipe: PipeFactory = <PipeFactory>makeDecorator(PipeMetadata);
 
 /**
- * {@link PropertyMetadata} factory function.
+ * {@link InputMetadata} factory function.
  *
- * See {@link PropertyMetadata}.
+ * See {@link InputMetadata}.
  */
-export var Property: PropertyFactory = makePropDecorator(PropertyMetadata);
+export var Input: InputFactory = makePropDecorator(InputMetadata);
 
 /**
- * {@link EventMetadata} factory function.
+ * {@link OutputMetadata} factory function.
  *
- * See {@link EventMetadata}.
+ * See {@link OutputMetadatas}.
  */
-export var Event: EventFactory = makePropDecorator(EventMetadata);
+export var Output: OutputFactory = makePropDecorator(OutputMetadata);
 
 /**
  * {@link HostBindingMetadata} factory function.

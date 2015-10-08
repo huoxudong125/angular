@@ -23,10 +23,11 @@ module.exports = function makeNodeTree(destinationPath) {
       'angular2/test/animate/**',
       'angular2/test/core/zone/**',
       'angular2/test/test_lib/fake_async_spec.ts',
-      'angular2/test/core/render/xhr_impl_spec.ts',
+      'angular2/test/core/compiler/xhr_impl_spec.ts',
       'angular2/test/core/forms/**',
       'angular2/test/tools/tools_spec.ts',
-      'angular1_router/**'
+      'angular1_router/**',
+      'angular2/examples/**/!(*_spec.ts)',
     ]
   });
 
@@ -40,8 +41,7 @@ module.exports = function makeNodeTree(destinationPath) {
     moduleResolution: 1 /* classic */,
     noEmitOnError: true,
     rootDir: '.',
-    rootFilePaths:
-        ['angular2/manual_typings/traceur-runtime.d.ts', 'angular2/manual_typings/globals.d.ts'],
+    rootFilePaths: ['angular2/manual_typings/globals.d.ts'],
     sourceMap: true,
     sourceRoot: '.',
     target: 'ES5'
@@ -68,14 +68,7 @@ module.exports = function makeNodeTree(destinationPath) {
     contributors: BASE_PACKAGE_JSON.contributors,
     dependencies: BASE_PACKAGE_JSON.dependencies,
     devDependencies: BASE_PACKAGE_JSON.devDependencies,
-    defaultDevDependencies: {
-      "yargs": BASE_PACKAGE_JSON.devDependencies['yargs'],
-      "gulp-sourcemaps": BASE_PACKAGE_JSON.devDependencies['gulp-sourcemaps'],
-      "gulp-traceur": BASE_PACKAGE_JSON.devDependencies['gulp-traceur'],
-      "gulp": BASE_PACKAGE_JSON.devDependencies['gulp'],
-      "gulp-rename": BASE_PACKAGE_JSON.devDependencies['gulp-rename'],
-      "through2": BASE_PACKAGE_JSON.devDependencies['through2']
-    }
+    defaultDevDependencies: {}
   };
 
   var packageJsons = new Funnel(modulesTree, {include: ['**/package.json']});

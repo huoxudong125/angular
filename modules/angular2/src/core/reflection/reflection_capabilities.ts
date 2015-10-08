@@ -134,7 +134,7 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
     return [];
   }
 
-  propMetadata(typeOrFunc: any): StringMap<string, any[]> {
+  propMetadata(typeOrFunc: any): {[key: string]: any[]} {
     // Prefer the direct API.
     if (isPresent((<any>typeOrFunc).propMetadata)) {
       var propMetadata = (<any>typeOrFunc).propMetadata;
@@ -168,6 +168,4 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
 
   // There is not a concept of import uri in Js, but this is useful in developing Dart applications.
   importUri(type: Type): string { return './'; }
-
-  moduleId(type: Type): string { return './'; }
 }

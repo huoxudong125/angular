@@ -9,7 +9,7 @@ import {
   RouteParams
 } from 'angular2/router';
 import * as db from './data';
-import {ObservableWrapper, PromiseWrapper} from 'angular2/src/core/facade/async';
+import {ObservableWrapper, PromiseWrapper, Promise} from 'angular2/src/core/facade/async';
 import {ListWrapper} from 'angular2/src/core/facade/collection';
 import {isPresent} from 'angular2/src/core/facade/lang';
 
@@ -53,32 +53,32 @@ class InboxRecord {
     this.firstName = record['first-name'];
     this.lastName = record['last-name'];
     this.date = record['date'];
-    this.draft = record['draft'] == true ? true : false;
+    this.draft = record['draft'] == true;
   }
 }
 
 @Injectable()
 class DbService {
-  getData() {
+  getData(): Promise<any[]> {
     var p = PromiseWrapper.completer();
     p.resolve(db.data);
     return p.promise;
   }
 
-  drafts() {
+  drafts(): Promise<any[]> {
     return PromiseWrapper.then(this.getData(), (data) => {
       return ListWrapper.filter(data,
                                 (record => isPresent(record['draft']) && record['draft'] == true));
     });
   }
 
-  emails() {
+  emails(): Promise<any[]> {
     return PromiseWrapper.then(this.getData(), (data) => {
       return ListWrapper.filter(data, (record => !isPresent(record['draft'])));
     });
   }
 
-  email(id) {
+  email(id): Promise<any> {
     return PromiseWrapper.then(this.getData(), (data) => {
       for (var i = 0; i < data.length; i++) {
         var entry = data[i];
@@ -109,9 +109,9 @@ class InboxCmp {
   ready: boolean = false;
 
   constructor(public router: Router, db: DbService) {
-    PromiseWrapper.then(db.emails(), (emails) => {
+    PromiseWrapper.then(db.emails(), emails => {
       this.ready = true;
-      this.items = ListWrapper.map(emails, (email) => { return new InboxRecord(email); });
+      this.items = emails.map(data => new InboxRecord(data));
     });
   }
 }
@@ -126,7 +126,7 @@ class DraftsCmp {
   constructor(public router: Router, db: DbService) {
     PromiseWrapper.then(db.drafts(), (drafts) => {
       this.ready = true;
-      this.items = ListWrapper.map(drafts, (email) => { return new InboxRecord(email); });
+      this.items = drafts.map(data => new InboxRecord(data));
     });
   }
 }

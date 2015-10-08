@@ -4,7 +4,7 @@ import {isBlank, isPresent} from 'angular2/src/core/facade/lang';
 import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
 
 import {Directive, Attribute} from 'angular2/src/core/metadata';
-import {DynamicComponentLoader, ComponentRef, ElementRef} from 'angular2/src/core/compiler';
+import {DynamicComponentLoader, ComponentRef, ElementRef} from 'angular2/src/core/linker';
 import {Injector, bind, Dependency} from 'angular2/src/core/di';
 
 import * as routerMod from './router';
@@ -32,7 +32,7 @@ export class RouterOutlet {
   private _currentInstruction: ComponentInstruction = null;
 
   /**
-   * @private
+   * @internal
    */
   constructor(private _elementRef: ElementRef, private _loader: DynamicComponentLoader,
               private _parentRouter: routerMod.Router, @Attribute('name') nameAttr: string) {

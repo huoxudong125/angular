@@ -5,7 +5,7 @@ import {DomAdapter} from './dom_adapter';
 /**
  * Provides DOM operations in any browser environment.
  */
-export class GenericBrowserDomAdapter extends DomAdapter {
+export abstract class GenericBrowserDomAdapter extends DomAdapter {
   private _animationPrefix: string = null;
   private _transitionEnd: string = null;
   constructor() {
@@ -23,7 +23,7 @@ export class GenericBrowserDomAdapter extends DomAdapter {
           }
         }
       }
-      var transEndEventNames = {
+      var transEndEventNames: {[key: string]: string} = {
         WebkitTransition: 'webkitTransitionEnd',
         MozTransition: 'transitionend',
         OTransition: 'oTransitionEnd otransitionend',
@@ -69,6 +69,10 @@ export class GenericBrowserDomAdapter extends DomAdapter {
   supportsDOMEvents(): boolean { return true; }
   supportsNativeShadowDOM(): boolean {
     return isFunction((<any>this.defaultDoc().body).createShadowRoot);
+  }
+  supportsUnprefixedCssAnimation(): boolean {
+    return isPresent(this.defaultDoc().body.style) &&
+           isPresent(this.defaultDoc().body.style.animationName);
   }
   getAnimationPrefix(): string {
     return isPresent(this._animationPrefix) ? this._animationPrefix : "";

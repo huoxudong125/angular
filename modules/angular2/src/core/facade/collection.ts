@@ -9,13 +9,12 @@ import {
 
 export var Map = global.Map;
 export var Set = global.Set;
-export var StringMap = global.Object;
 
 // Safari and Internet Explorer do not support the iterable parameter to the
 // Map constructor.  We work around that by manually adding the items.
 var createMapFromPairs: {(pairs: any[]): Map<any, any>} = (function() {
   try {
-    if (new Map([[1, 2]]).size === 1) {
+    if (new Map(<any>[[1, 2]]).size === 1) {
       return function createMapFromPairs(pairs: any[]): Map<any, any> { return new Map(pairs); };
     }
   } catch (e) {
@@ -31,8 +30,8 @@ var createMapFromPairs: {(pairs: any[]): Map<any, any>} = (function() {
 })();
 var createMapFromMap: {(m: Map<any, any>): Map<any, any>} = (function() {
   try {
-    if (new Map(new Map())) {
-      return function createMapFromMap(m: Map<any, any>): Map<any, any> { return new Map(m); };
+    if (new Map(<any>new Map())) {
+      return function createMapFromMap(m: Map<any, any>): Map<any, any> { return new Map(<any>m); };
     }
   } catch (e) {
   }
@@ -79,15 +78,15 @@ var _arrayFromMap: {(m: Map<any, any>, getValues: boolean): any[]} = (function()
 
 export class MapWrapper {
   static clone<K, V>(m: Map<K, V>): Map<K, V> { return createMapFromMap(m); }
-  static createFromStringMap<T>(stringMap: StringMap<string, T>): Map<string, T> {
-    var result = new Map();
+  static createFromStringMap<T>(stringMap: {[key: string]: T}): Map<string, T> {
+    var result = new Map<string, T>();
     for (var prop in stringMap) {
       result.set(prop, stringMap[prop]);
     }
     return result;
   }
-  static toStringMap<T>(m: Map<string, T>): StringMap<string, T> {
-    var r = {};
+  static toStringMap<T>(m: Map<string, T>): {[key: string]: T} {
+    var r: {[key: string]: T} = {};
     m.forEach((v, k) => r[k] = v);
     return r;
   }
@@ -106,28 +105,28 @@ export class MapWrapper {
  * Wraps Javascript Objects
  */
 export class StringMapWrapper {
-  static create(): StringMap<any, any> {
+  static create(): {[k: /*any*/ string]: any} {
     // Note: We are not using Object.create(null) here due to
     // performance!
     // http://jsperf.com/ng2-object-create-null
     return {};
   }
-  static contains(map: StringMap<string, any>, key: string): boolean {
+  static contains(map: {[key: string]: any}, key: string): boolean {
     return map.hasOwnProperty(key);
   }
-  static get<V>(map: StringMap<string, V>, key: string): V {
+  static get<V>(map: {[key: string]: V}, key: string): V {
     return map.hasOwnProperty(key) ? map[key] : undefined;
   }
-  static set<V>(map: StringMap<string, V>, key: string, value: V) { map[key] = value; }
-  static keys(map: StringMap<string, any>): string[] { return Object.keys(map); }
-  static isEmpty(map: StringMap<string, any>): boolean {
+  static set<V>(map: {[key: string]: V}, key: string, value: V) { map[key] = value; }
+  static keys(map: {[key: string]: any}): string[] { return Object.keys(map); }
+  static isEmpty(map: {[key: string]: any}): boolean {
     for (var prop in map) {
       return false;
     }
     return true;
   }
-  static delete (map: StringMap<string, any>, key: string) { delete map[key]; }
-  static forEach<K, V>(map: StringMap<string, V>, callback: /*(V, K) => void*/ Function) {
+  static delete (map: {[key: string]: any}, key: string) { delete map[key]; }
+  static forEach<K, V>(map: {[key: string]: V}, callback: /*(V, K) => void*/ Function) {
     for (var prop in map) {
       if (map.hasOwnProperty(prop)) {
         callback(map[prop], prop);
@@ -135,8 +134,8 @@ export class StringMapWrapper {
     }
   }
 
-  static merge<V>(m1: StringMap<string, V>, m2: StringMap<string, V>): StringMap<string, V> {
-    var m = {};
+  static merge<V>(m1: {[key: string]: V}, m2: {[key: string]: V}): {[key: string]: V} {
+    var m: {[key: string]: V} = {};
 
     for (var attr in m1) {
       if (m1.hasOwnProperty(attr)) {
@@ -153,7 +152,7 @@ export class StringMapWrapper {
     return m;
   }
 
-  static equals<V>(m1: StringMap<string, V>, m2: StringMap<string, V>): boolean {
+  static equals<V>(m1: {[key: string]: V}, m2: {[key: string]: V}): boolean {
     var k1 = Object.keys(m1);
     var k2 = Object.keys(m2);
     if (k1.length != k2.length) {
@@ -178,12 +177,6 @@ export class ListWrapper {
   static createFixedSize(size: number): any[] { return new Array(size); }
   static createGrowableSize(size: number): any[] { return new Array(size); }
   static clone<T>(array: T[]): T[] { return array.slice(0); }
-  static map<T, V>(array: T[], fn: (T) => V): V[] { return array.map(fn); }
-  static forEach<T>(array: T[], fn: (T) => void) {
-    for (var i = 0; i < array.length; i++) {
-      fn(array[i]);
-    }
-  }
   static forEachWithIndex<T>(array: T[], fn: (T, number) => void) {
     for (var i = 0; i < array.length; i++) {
       fn(array[i], i);
@@ -236,7 +229,6 @@ export class ListWrapper {
       list.splice(index, 1);
     }
   }
-  static removeLast<T>(list: T[]): T { return list.pop(); }
   static remove<T>(list: T[], el: T): boolean {
     var index = list.indexOf(el);
     if (index > -1) {
@@ -246,7 +238,6 @@ export class ListWrapper {
     return false;
   }
   static clear(list: any[]) { list.length = 0; }
-  static join(list: any[], s: string): string { return list.join(s); }
   static isEmpty(list: any[]): boolean { return list.length == 0; }
   static fill(list: any[], value: any, start: number = 0, end: number = null) {
     list.fill(value, start, end === null ? list.length : end);

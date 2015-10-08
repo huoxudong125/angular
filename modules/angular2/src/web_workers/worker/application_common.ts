@@ -11,11 +11,11 @@ import {
 } from 'angular2/src/core/facade/lang';
 import {ExceptionHandler} from 'angular2/src/core/facade/exceptions';
 import {Promise, PromiseWrapper, PromiseCompleter} from 'angular2/src/core/facade/async';
-import {XHR} from 'angular2/src/core/render/xhr';
+import {XHR} from 'angular2/src/core/compiler/xhr';
 import {WebWorkerXHRImpl} from 'angular2/src/web_workers/worker/xhr_impl';
-import {AppRootUrl} from 'angular2/src/core/services/app_root_url';
-import {WebWorkerRenderer, WebWorkerCompiler} from './renderer';
-import {Renderer, RenderCompiler} from 'angular2/src/core/render/api';
+import {AppRootUrl} from 'angular2/src/core/compiler/app_root_url';
+import {WebWorkerRenderer} from './renderer';
+import {Renderer} from 'angular2/src/core/render/api';
 import {ClientMessageBrokerFactory} from 'angular2/src/web_workers/shared/client_message_broker';
 import {MessageBus} from 'angular2/src/web_workers/shared/message_bus';
 import {
@@ -33,8 +33,9 @@ import {
 import {ObservableWrapper} from 'angular2/src/core/facade/async';
 import {SETUP_CHANNEL} from 'angular2/src/web_workers/shared/messaging_api';
 import {WebWorkerEventDispatcher} from 'angular2/src/web_workers/worker/event_dispatcher';
-import {ComponentRef} from 'angular2/src/core/compiler/dynamic_component_loader';
+import {ComponentRef} from 'angular2/src/core/linker/dynamic_component_loader';
 import {NgZone} from 'angular2/src/core/zone/ng_zone';
+import {compilerBindings} from 'angular2/src/core/compiler/compiler';
 
 /**
  * Initialize the Angular 'platform' on the page in a manner suitable for applications
@@ -83,16 +84,15 @@ class PrintLogger {
   logGroupEnd() {}
 }
 
-function webWorkerBindings(appComponentType, bus: MessageBus, initData: StringMap<string, any>):
+function webWorkerBindings(appComponentType, bus: MessageBus, initData: {[key: string]: any}):
     Array<Type | Binding | any[]> {
   return [
+    compilerBindings(),
     Serializer,
     bind(MessageBus).toValue(bus),
     ClientMessageBrokerFactory,
     WebWorkerRenderer,
     bind(Renderer).toAlias(WebWorkerRenderer),
-    WebWorkerCompiler,
-    bind(RenderCompiler).toAlias(WebWorkerCompiler),
     bind(ON_WEB_WORKER).toValue(true),
     RenderViewWithFragmentsStore,
     RenderProtoViewRefStore,
@@ -118,7 +118,7 @@ export function bootstrapWebWorkerCommon(appComponentType: Type, bus: MessageBus
 
     var subscription: any;
     var emitter = bus.from(SETUP_CHANNEL);
-    subscription = ObservableWrapper.subscribe(emitter, (message: StringMap<string, any>) => {
+    subscription = ObservableWrapper.subscribe(emitter, (message: {[key: string]: any}) => {
       var bindings =
           [applicationCommonBindings(), webWorkerBindings(appComponentType, bus, message)];
       if (isPresent(appBindings)) {

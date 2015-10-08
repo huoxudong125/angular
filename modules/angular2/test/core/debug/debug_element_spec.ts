@@ -36,7 +36,7 @@ class Logger {
   add(thing: string) { this.log.push(thing); }
 }
 
-@Directive({selector: '[message]', properties: ['message']})
+@Directive({selector: '[message]', inputs: ['message']})
 @Injectable()
 class MessageDir {
   logger: Logger;
@@ -51,7 +51,7 @@ class MessageDir {
   template: `<div class="child" message="child">
                <span class="childnested" message="nestedchild">Child</span>
              </div>
-             <span class="child">{{childBinding}}</span>`,
+             <span class="child" [inner-html]="childBinding"></span>`,
   directives: [MessageDir]
 })
 @Injectable()
@@ -66,7 +66,7 @@ class ChildComp {
   template: `<div class="parent" message="parent">
                <span class="parentnested" message="nestedparent">Parent</span>
              </div>
-             <span class="parent">{{parentBinding}}</span>
+             <span class="parent" [inner-html]="parentBinding"></span>
              <child-comp class="child-comp-class"></child-comp>`,
   directives: [ChildComp, MessageDir]
 })
@@ -76,7 +76,7 @@ class ParentComp {
   constructor() { this.parentBinding = 'OriginalParent'; }
 }
 
-@Directive({selector: 'custom-emitter', events: ['myevent']})
+@Directive({selector: 'custom-emitter', outputs: ['myevent']})
 @Injectable()
 class CustomEmitter {
   myevent: EventEmitter;
@@ -107,9 +107,9 @@ class EventsComp {
 
 @Component({selector: 'using-for', viewBindings: [Logger]})
 @View({
-  template: `<span *ng-for="#thing of stuff">{{thing}}</span>
+  template: `<span *ng-for="#thing of stuff" [inner-html]="thing"></span>
             <ul message="list">
-              <li *ng-for="#item of stuff">{{item}}</li>
+              <li *ng-for="#item of stuff" [inner-html]="item"></li>
             </ul>`,
   directives: [NgFor, MessageDir]
 })

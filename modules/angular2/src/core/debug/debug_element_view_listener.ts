@@ -1,8 +1,8 @@
 import {CONST_EXPR, isPresent, NumberWrapper, StringWrapper} from 'angular2/src/core/facade/lang';
 import {MapWrapper, Map, ListWrapper} from 'angular2/src/core/facade/collection';
 import {Injectable, bind, Binding} from 'angular2/src/core/di';
-import {AppViewListener} from 'angular2/src/core/compiler/view_listener';
-import {AppView} from 'angular2/src/core/compiler/view';
+import {AppViewListener} from 'angular2/src/core/linker/view_listener';
+import {AppView} from 'angular2/src/core/linker/view';
 import {DOM} from 'angular2/src/core/dom/dom_adapter';
 import {Renderer} from 'angular2/src/core/render/api';
 import {DebugElement} from './debug_element';
@@ -20,15 +20,14 @@ var _nextId = 0;
 
 function _setElementId(element, indices: number[]) {
   if (isPresent(element)) {
-    DOM.setData(element, NG_ID_PROPERTY, ListWrapper.join(indices, NG_ID_SEPARATOR));
+    DOM.setData(element, NG_ID_PROPERTY, indices.join(NG_ID_SEPARATOR));
   }
 }
 
 function _getElementId(element): number[] {
   var elId = DOM.getData(element, NG_ID_PROPERTY);
   if (isPresent(elId)) {
-    return ListWrapper.map(elId.split(NG_ID_SEPARATOR),
-                           (partStr) => NumberWrapper.parseInt(partStr, 10));
+    return elId.split(NG_ID_SEPARATOR).map(partStr => NumberWrapper.parseInt(partStr, 10));
   } else {
     return null;
   }

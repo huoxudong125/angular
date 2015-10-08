@@ -1,7 +1,11 @@
 import {NgZone} from 'angular2/src/core/zone/ng_zone';
 import {Type, isBlank, isPresent, assertionsEnabled} from 'angular2/src/core/facade/lang';
 import {bind, Binding, Injector, OpaqueToken} from 'angular2/src/core/di';
-import {APP_COMPONENT_REF_PROMISE, APP_COMPONENT} from './application_tokens';
+import {
+  APP_COMPONENT_REF_PROMISE,
+  APP_COMPONENT,
+  APP_ID_RANDOM_BINDING
+} from './application_tokens';
 import {Promise, PromiseWrapper, PromiseCompleter} from 'angular2/src/core/facade/async';
 import {ListWrapper} from 'angular2/src/core/facade/collection';
 import {Reflector, reflector} from 'angular2/src/core/reflection/reflection';
@@ -9,41 +13,31 @@ import {TestabilityRegistry, Testability} from 'angular2/src/core/testability/te
 import {
   ComponentRef,
   DynamicComponentLoader
-} from 'angular2/src/core/compiler/dynamic_component_loader';
+} from 'angular2/src/core/linker/dynamic_component_loader';
 import {
   BaseException,
   WrappedException,
   ExceptionHandler
 } from 'angular2/src/core/facade/exceptions';
 import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {internalView} from 'angular2/src/core/compiler/view_ref';
+import {internalView} from 'angular2/src/core/linker/view_ref';
 import {LifeCycle} from 'angular2/src/core/life_cycle/life_cycle';
-import {ProtoViewFactory} from 'angular2/src/core/compiler/proto_view_factory';
 import {
-  Parser,
-  Lexer,
-  ChangeDetection,
-  DynamicChangeDetection,
-  JitChangeDetection,
-  PreGeneratedChangeDetection,
   IterableDiffers,
   defaultIterableDiffers,
   KeyValueDiffers,
   defaultKeyValueDiffers
 } from 'angular2/src/core/change_detection/change_detection';
-import {AppViewPool, APP_VIEW_POOL_CAPACITY} from 'angular2/src/core/compiler/view_pool';
-import {AppViewManager} from 'angular2/src/core/compiler/view_manager';
-import {AppViewManagerUtils} from 'angular2/src/core/compiler/view_manager_utils';
-import {AppViewListener} from 'angular2/src/core/compiler/view_listener';
-import {Compiler, CompilerCache} from './compiler/compiler';
+import {AppViewPool, APP_VIEW_POOL_CAPACITY} from 'angular2/src/core/linker/view_pool';
+import {AppViewManager} from 'angular2/src/core/linker/view_manager';
+import {AppViewManagerUtils} from 'angular2/src/core/linker/view_manager_utils';
+import {AppViewListener} from 'angular2/src/core/linker/view_listener';
+import {ProtoViewFactory} from './linker/proto_view_factory';
 import {DEFAULT_PIPES} from 'angular2/src/core/pipes';
-import {ViewResolver} from './compiler/view_resolver';
-import {DirectiveResolver} from './compiler/directive_resolver';
-import {PipeResolver} from './compiler/pipe_resolver';
-import {StyleUrlResolver} from 'angular2/src/core/render/dom/compiler/style_url_resolver';
-import {UrlResolver} from 'angular2/src/core/services/url_resolver';
-import {ComponentUrlMapper} from 'angular2/src/core/compiler/component_url_mapper';
-import {compilerBindings} from 'angular2/src/compiler/compiler';
+import {ViewResolver} from './linker/view_resolver';
+import {DirectiveResolver} from './linker/directive_resolver';
+import {PipeResolver} from './linker/pipe_resolver';
+import {Compiler} from 'angular2/src/core/linker/compiler';
 
 /**
  * Constructs the set of bindings meant for use at the platform level.
@@ -88,34 +82,21 @@ function _componentBindings(appComponentType: Type): Array<Type | Binding | any[
  * application, regardless of whether it runs on the UI thread or in a web worker.
  */
 export function applicationCommonBindings(): Array<Type | Binding | any[]> {
-  var bestChangeDetection = new DynamicChangeDetection();
-  if (PreGeneratedChangeDetection.isSupported()) {
-    bestChangeDetection = new PreGeneratedChangeDetection();
-  } else if (JitChangeDetection.isSupported()) {
-    bestChangeDetection = new JitChangeDetection();
-  }
   return [
-    compilerBindings(),
-    ProtoViewFactory,
+    Compiler,
+    APP_ID_RANDOM_BINDING,
     AppViewPool,
     bind(APP_VIEW_POOL_CAPACITY).toValue(10000),
     AppViewManager,
     AppViewManagerUtils,
     AppViewListener,
-    Compiler,
-    CompilerCache,
+    ProtoViewFactory,
     ViewResolver,
     DEFAULT_PIPES,
     bind(IterableDiffers).toValue(defaultIterableDiffers),
     bind(KeyValueDiffers).toValue(defaultKeyValueDiffers),
-    bind(ChangeDetection).toValue(bestChangeDetection),
     DirectiveResolver,
-    UrlResolver,
-    StyleUrlResolver,
     PipeResolver,
-    ComponentUrlMapper,
-    Parser,
-    Lexer,
     DynamicComponentLoader,
     bind(LifeCycle).toFactory((exceptionHandler) => new LifeCycle(null, assertionsEnabled()),
                               [ExceptionHandler]),
@@ -132,7 +113,7 @@ export function createNgZone(): NgZone {
 var _platform: PlatformRef;
 
 /**
- * @private
+ * @internal
  */
 export function platformCommon(bindings?: Array<Type | Binding | any[]>, initializer?: () => void):
     PlatformRef {
@@ -164,12 +145,12 @@ export function platformCommon(bindings?: Array<Type | Binding | any[]>, initial
  */
 export class PlatformRef {
   /**
-   * @private
+   * @internal
    */
   _applications: ApplicationRef[] = [];
 
   /**
-   * @private
+   * @internal
    */
   constructor(private _injector: Injector, private _dispose: () => void) {}
 
@@ -270,7 +251,7 @@ export class PlatformRef {
   }
 
   /**
-   * @private
+   * @internal
    */
   _applicationDisposed(app: ApplicationRef): void { ListWrapper.remove(this._applications, app); }
 }
@@ -285,7 +266,7 @@ export class ApplicationRef {
   private _rootComponents: ComponentRef[] = [];
 
   /**
-   * @private
+   * @internal
    */
   constructor(private _platform: PlatformRef, private _zone: NgZone, private _injector: Injector) {}
 

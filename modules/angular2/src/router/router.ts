@@ -50,7 +50,7 @@ export class Router {
   private _currentNavigation: Promise<any> = _resolveToTrue;
   private _outlet: RouterOutlet = null;
 
-  private _auxRouters: Map<string, Router> = new Map();
+  private _auxRouters = new Map<string, Router>();
   private _childRouter: Router;
 
   private _subject: EventEmitter = new EventEmitter();
@@ -427,7 +427,7 @@ export class Router {
     }
 
     if (rest[rest.length - 1] == '') {
-      ListWrapper.removeLast(rest);
+      rest.pop();
     }
 
     if (rest.length < 1) {

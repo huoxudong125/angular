@@ -42,8 +42,10 @@ export class Testability {
     return this._pendingCount;
   }
 
+  isStable(): boolean { return this._pendingCount == 0 && !this._isAngularEventPending; }
+
   _runCallbacksIfReady(): void {
-    if (this._pendingCount != 0 || this._isAngularEventPending) {
+    if (!this.isStable()) {
       return;  // Not ready
     }
 
@@ -74,7 +76,7 @@ export class Testability {
 
 @Injectable()
 export class TestabilityRegistry {
-  _applications: Map<any, Testability> = new Map();
+  _applications = new Map<any, Testability>();
 
   constructor() { testabilityGetter.addToWindow(this); }
 

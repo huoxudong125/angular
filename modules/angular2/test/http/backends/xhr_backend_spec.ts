@@ -38,7 +38,7 @@ class MockBrowserXHR extends BrowserXhr {
   response: any;
   responseText: string;
   setRequestHeader: any;
-  callbacks: Map<string, Function>;
+  callbacks = new Map<string, Function>();
   status: number;
   constructor() {
     super();
@@ -47,7 +47,6 @@ class MockBrowserXHR extends BrowserXhr {
     this.send = sendSpy = spy.spy('send');
     this.open = openSpy = spy.spy('open');
     this.setRequestHeader = setRequestHeaderSpy = spy.spy('setRequestHeader');
-    this.callbacks = new Map();
   }
 
   setStatusCode(status) { this.status = status; }
@@ -57,6 +56,8 @@ class MockBrowserXHR extends BrowserXhr {
   setResponseText(value) { this.responseText = value; }
 
   addEventListener(type: string, cb: Function) { this.callbacks.set(type, cb); }
+
+  removeEventListener(type: string, cb: Function) { this.callbacks.delete(type); }
 
   dispatchEvent(type: string) { this.callbacks.get(type)({}); }
 
@@ -95,7 +96,7 @@ export function main() {
          inject([AsyncTestCompleter], async => {
            var connection = new XHRConnection(sampleRequest, new MockBrowserXHR(),
                                               new ResponseOptions({type: ResponseTypes.Error}));
-           ObservableWrapper.subscribe<Response>(connection.response, res => {
+           connection.response.subscribe(res => {
              expect(res.type).toBe(ResponseTypes.Error);
              async.done();
            });
@@ -105,40 +106,44 @@ export function main() {
       it('should complete a request', inject([AsyncTestCompleter], async => {
            var connection = new XHRConnection(sampleRequest, new MockBrowserXHR(),
                                               new ResponseOptions({type: ResponseTypes.Error}));
-           ObservableWrapper.subscribe<Response>(connection.response, res => {
-             expect(res.type).toBe(ResponseTypes.Error);
-           }, null, () => { async.done(); });
+           connection.response.subscribe(res => { expect(res.type).toBe(ResponseTypes.Error); },
+                                         null, () => { async.done(); });
 
            existingXHRs[0].dispatchEvent('load');
          }));
 
       it('should call abort when disposed', () => {
         var connection = new XHRConnection(sampleRequest, new MockBrowserXHR());
-        connection.dispose();
+        var request = connection.response.subscribe();
+        request.unsubscribe();
         expect(abortSpy).toHaveBeenCalled();
       });
 
       it('should create an error Response on error', inject([AsyncTestCompleter], async => {
            var connection = new XHRConnection(sampleRequest, new MockBrowserXHR(),
                                               new ResponseOptions({type: ResponseTypes.Error}));
-           ObservableWrapper.subscribe(connection.response, null, res => {
+           connection.response.subscribe(null, res => {
              expect(res.type).toBe(ResponseTypes.Error);
              async.done();
            });
            existingXHRs[0].dispatchEvent('error');
          }));
 
-      it('should automatically call open with method and url', () => {
-        new XHRConnection(sampleRequest, new MockBrowserXHR());
+      it('should call open with method and url when subscribed to', () => {
+        var connection = new XHRConnection(sampleRequest, new MockBrowserXHR());
+        expect(openSpy).not.toHaveBeenCalled();
+        connection.response.subscribe();
         expect(openSpy).toHaveBeenCalledWith('GET', sampleRequest.url);
       });
 
 
-      it('should automatically call send on the backend with request body', () => {
+      it('should call send on the backend with request body when subscribed to', () => {
         var body = 'Some body to love';
         var base = new BaseRequestOptions();
-        new XHRConnection(new Request(base.merge(new RequestOptions({body: body}))),
-                          new MockBrowserXHR());
+        var connection = new XHRConnection(
+            new Request(base.merge(new RequestOptions({body: body}))), new MockBrowserXHR());
+        expect(sendSpy).not.toHaveBeenCalled();
+        connection.response.subscribe();
         expect(sendSpy).toHaveBeenCalledWith(body);
       });
 
@@ -146,8 +151,9 @@ export function main() {
         var headers = new Headers({'Content-Type': 'text/xml', 'Breaking-Bad': '<3'});
 
         var base = new BaseRequestOptions();
-        new XHRConnection(new Request(base.merge(new RequestOptions({headers: headers}))),
-                          new MockBrowserXHR());
+        var connection = new XHRConnection(
+            new Request(base.merge(new RequestOptions({headers: headers}))), new MockBrowserXHR());
+        connection.response.subscribe();
         expect(setRequestHeaderSpy).toHaveBeenCalledWith('Content-Type', ['text/xml']);
         expect(setRequestHeaderSpy).toHaveBeenCalledWith('Breaking-Bad', ['<3']);
       });
@@ -157,7 +163,7 @@ export function main() {
            var connection = new XHRConnection(sampleRequest, new MockBrowserXHR(),
                                               new ResponseOptions({status: statusCode}));
 
-           ObservableWrapper.subscribe<Response>(connection.response, res => {
+           connection.response.subscribe(res => {
              expect(res.status).toBe(statusCode);
              async.done();
            });
@@ -172,7 +178,7 @@ export function main() {
            var connection = new XHRConnection(sampleRequest, new MockBrowserXHR(),
                                               new ResponseOptions({status: statusCode}));
 
-           ObservableWrapper.subscribe<Response>(connection.response, res => {
+           connection.response.subscribe(res => {
              expect(res.status).toBe(normalizedCode);
              async.done();
            });
@@ -190,19 +196,18 @@ export function main() {
            var connection2 =
                new XHRConnection(sampleRequest, new MockBrowserXHR(), new ResponseOptions());
 
-           ObservableWrapper.subscribe<Response>(connection1.response, res => {
+           connection1.response.subscribe(res => {
              expect(res.text()).toBe(responseBody);
 
-             ObservableWrapper.subscribe<Response>(connection2.response, ress => {
+             connection2.response.subscribe(ress => {
                expect(ress.text()).toBe(responseBody);
                async.done();
              });
+             existingXHRs[1].setResponse(responseBody);
              existingXHRs[1].dispatchEvent('load');
            });
 
            existingXHRs[0].setResponseText(responseBody);
-           existingXHRs[1].setResponse(responseBody);
-
            existingXHRs[0].dispatchEvent('load');
          }));
 

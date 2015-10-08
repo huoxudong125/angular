@@ -1,6 +1,5 @@
 import {CONST_EXPR} from 'angular2/src/core/facade/lang';
 import {EventEmitter, ObservableWrapper} from 'angular2/src/core/facade/async';
-import {StringMap} from 'angular2/src/core/facade/collection';
 import {OnChanges, OnDestroy} from 'angular2/lifecycle_hooks';
 import {SimpleChange} from 'angular2/src/core/change_detection';
 import {Query, Directive} from 'angular2/src/core/metadata';
@@ -8,7 +7,8 @@ import {forwardRef, Host, SkipSelf, Binding, Inject, Optional} from 'angular2/sr
 
 import {ControlContainer} from './control_container';
 import {NgControl} from './ng_control';
-import {controlPath, isPropertyUpdated} from './shared';
+import {ControlValueAccessor, NG_VALUE_ACCESSOR} from './control_value_accessor';
+import {controlPath, isPropertyUpdated, selectValueAccessor} from './shared';
 import {Control} from '../model';
 import {Validators, NG_VALIDATORS} from '../validators';
 
@@ -74,8 +74,8 @@ const controlNameBinding =
 @Directive({
   selector: '[ng-control]',
   bindings: [controlNameBinding],
-  properties: ['name: ngControl', 'model: ngModel'],
-  events: ['update: ngModel'],
+  inputs: ['name: ngControl', 'model: ngModel'],
+  outputs: ['update: ngModel'],
   exportAs: 'form'
 })
 export class NgControlName extends NgControl implements OnChanges,
@@ -88,13 +88,15 @@ export class NgControlName extends NgControl implements OnChanges,
   _added = false;
 
   constructor(@Host() @SkipSelf() parent: ControlContainer,
-              @Optional() @Inject(NG_VALIDATORS) validators: Function[]) {
+              @Optional() @Inject(NG_VALIDATORS) validators: Function[],
+              @Optional() @Inject(NG_VALUE_ACCESSOR) valueAccessors: ControlValueAccessor[]) {
     super();
     this._parent = parent;
     this.validators = validators;
+    this.valueAccessor = selectValueAccessor(this, valueAccessors);
   }
 
-  onChanges(changes: StringMap<string, SimpleChange>) {
+  onChanges(changes: {[key: string]: SimpleChange}) {
     if (!this._added) {
       this.formDirective.addControl(this);
       this._added = true;

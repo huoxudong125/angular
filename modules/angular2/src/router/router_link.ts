@@ -1,5 +1,5 @@
 import {Directive} from '../core/metadata';
-import {StringMap, StringMapWrapper} from 'angular2/src/core/facade/collection';
+import {StringMapWrapper} from 'angular2/src/core/facade/collection';
 
 import {Router} from './router';
 import {Location} from './location';
@@ -36,7 +36,7 @@ import {Instruction, stringifyInstruction} from './instruction';
  */
 @Directive({
   selector: '[router-link]',
-  properties: ['routeParams: routerLink'],
+  inputs: ['routeParams: routerLink'],
   host: {
     '(click)': 'onClick()',
     '[attr.href]': 'visibleHref',

@@ -8,7 +8,7 @@ import {
   ObservableWrapper,
   EventEmitter
 } from "angular2/src/core/facade/async";
-import {ListWrapper, StringMapWrapper, MapWrapper} from "angular2/src/core/facade/collection";
+import {StringMapWrapper, MapWrapper} from "angular2/src/core/facade/collection";
 import {Serializer} from "angular2/src/web_workers/shared/serializer";
 import {Injectable} from "angular2/src/core/di";
 import {Type, StringWrapper} from "angular2/src/core/facade/lang";
@@ -17,7 +17,7 @@ export {Type} from "angular2/src/core/facade/lang";
 @Injectable()
 export class ClientMessageBrokerFactory {
   /**
-   * @private
+   * @internal
    */
   constructor(private _messageBus: MessageBus, public _serializer: Serializer) {}
 
@@ -35,13 +35,13 @@ export class ClientMessageBroker {
   private _sink: EventEmitter;
 
   /**
-   * @private
+   * @internal
    */
   constructor(messageBus: MessageBus, public _serializer: Serializer, public channel) {
     this._sink = messageBus.to(channel);
     var source = messageBus.from(channel);
     ObservableWrapper.subscribe(source,
-                                (message: StringMap<string, any>) => this._handleMessage(message));
+                                (message: {[key: string]: any}) => this._handleMessage(message));
   }
 
   private _generateMessageId(name: string): string {
@@ -58,7 +58,7 @@ export class ClientMessageBroker {
   runOnService(args: UiArguments, returnType: Type): Promise<any> {
     var fnArgs = [];
     if (isPresent(args.args)) {
-      ListWrapper.forEach(args.args, (argument) => {
+      args.args.forEach(argument => {
         if (argument.type != null) {
           fnArgs.push(this._serializer.serialize(argument.value, argument.type));
         } else {
@@ -99,7 +99,7 @@ export class ClientMessageBroker {
     return promise;
   }
 
-  private _handleMessage(message: StringMap<string, any>): void {
+  private _handleMessage(message: {[key: string]: any}): void {
     var data = new MessageData(message);
     // TODO(jteplitz602): replace these strings with messaging constants #3685
     if (StringWrapper.equals(data.type, "result") || StringWrapper.equals(data.type, "error")) {
@@ -121,7 +121,7 @@ class MessageData {
   value: any;
   id: string;
 
-  constructor(data: StringMap<string, any>) {
+  constructor(data: {[key: string]: any}) {
     this.type = StringMapWrapper.get(data, "type");
     this.id = this._getValueIfPresent(data, "id");
     this.value = this._getValueIfPresent(data, "value");
@@ -130,7 +130,7 @@ class MessageData {
   /**
    * Returns the value from the StringMap if present. Otherwise returns null
    */
-  _getValueIfPresent(data: StringMap<string, any>, key: string) {
+  _getValueIfPresent(data: {[key: string]: any}, key: string) {
     if (StringMapWrapper.contains(data, key)) {
       return StringMapWrapper.get(data, key);
     } else {

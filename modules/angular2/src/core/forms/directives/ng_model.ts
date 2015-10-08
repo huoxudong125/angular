@@ -4,10 +4,11 @@ import {OnChanges} from 'angular2/lifecycle_hooks';
 import {SimpleChange} from 'angular2/src/core/change_detection';
 import {Query, Directive} from 'angular2/src/core/metadata';
 import {forwardRef, Binding, Inject, Optional} from 'angular2/src/core/di';
+import {ControlValueAccessor, NG_VALUE_ACCESSOR} from './control_value_accessor';
 import {NgControl} from './ng_control';
 import {Control} from '../model';
 import {Validators, NG_VALIDATORS} from '../validators';
-import {setUpControl, isPropertyUpdated} from './shared';
+import {setUpControl, isPropertyUpdated, selectValueAccessor} from './shared';
 
 const formControlBinding = CONST_EXPR(new Binding(NgControl, {toAlias: forwardRef(() => NgModel)}));
 
@@ -35,8 +36,8 @@ const formControlBinding = CONST_EXPR(new Binding(NgControl, {toAlias: forwardRe
 @Directive({
   selector: '[ng-model]:not([ng-control]):not([ng-form-control])',
   bindings: [formControlBinding],
-  properties: ['model: ngModel'],
-  events: ['update: ngModel'],
+  inputs: ['model: ngModel'],
+  outputs: ['update: ngModel'],
   exportAs: 'form'
 })
 export class NgModel extends NgControl implements OnChanges {
@@ -47,12 +48,14 @@ export class NgModel extends NgControl implements OnChanges {
   viewModel: any;
   validators: Function[];
 
-  constructor(@Optional() @Inject(NG_VALIDATORS) validators: Function[]) {
+  constructor(@Optional() @Inject(NG_VALIDATORS) validators: Function[],
+              @Optional() @Inject(NG_VALUE_ACCESSOR) valueAccessors: ControlValueAccessor[]) {
     super();
     this.validators = validators;
+    this.valueAccessor = selectValueAccessor(this, valueAccessors);
   }
 
-  onChanges(changes: StringMap<string, SimpleChange>) {
+  onChanges(changes: {[key: string]: SimpleChange}) {
     if (!this._added) {
       setUpControl(this._control, this);
       this._control.updateValidity();

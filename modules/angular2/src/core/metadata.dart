@@ -8,50 +8,69 @@ import './metadata/view.dart';
 
 export './metadata/di.dart';
 export './metadata/directives.dart';
-export './metadata/view.dart';
+export './metadata/view.dart' hide VIEW_ENCAPSULATION_VALUES;
 
 /**
  * See: [DirectiveMetadata] for docs.
  */
 class Directive extends DirectiveMetadata {
-  const Directive({String selector, List<String> properties,
-  List<String> events, Map<String, String> host,
+  const Directive({String selector, List<String> inputs,
+  List<String> outputs,
+  @deprecated List<String> properties,
+  @deprecated List<String> events,
+  Map<String, String> host,
   List bindings, String exportAs, String moduleId,
-  Map<String, dynamic> queries,
-  bool compileChildren: true})
+  Map<String, dynamic> queries})
     : super(
     selector: selector,
+    inputs: inputs,
+    outputs: outputs,
     properties: properties,
     events: events,
     host: host,
     bindings: bindings,
     exportAs: exportAs,
     moduleId: moduleId,
-    queries: queries,
-    compileChildren: compileChildren);
+    queries: queries);
 }
 
 /**
  * See: [ComponentMetadata] for docs.
  */
 class Component extends ComponentMetadata {
-  const Component({String selector, List<String> properties,
-  List<String> events, Map<String, String> host,
+  const Component({String selector, List<String> inputs,
+  List<String> outputs,
+  @deprecated List<String> properties,
+  @deprecated List<String> events,
+  Map<String, String> host,
   List bindings, String exportAs, String moduleId,
   Map<String, dynamic> queries,
-  bool compileChildren, List viewBindings, ChangeDetectionStrategy changeDetection})
+  List viewBindings, ChangeDetectionStrategy changeDetection,
+  String templateUrl, String template, dynamic directives,
+  dynamic pipes, ViewEncapsulation encapsulation, List<String> styles,
+  List<String> styleUrls
+  })
     : super(
     selector: selector,
+    inputs: inputs,
+    outputs: outputs,
     properties: properties,
     events: events,
     host: host,
     bindings: bindings,
     exportAs: exportAs,
     moduleId: moduleId,
-    compileChildren: compileChildren,
     viewBindings: viewBindings,
     queries: queries,
-    changeDetection: changeDetection);
+    changeDetection: changeDetection,
+    templateUrl: templateUrl,
+    template: template,
+    directives: directives,
+    pipes: pipes,
+    encapsulation: encapsulation,
+    styles: styles,
+    styleUrls: styleUrls
+    );
 }
 
 /**
@@ -134,18 +153,18 @@ class ViewChild extends ViewChildMetadata {
 }
 
 /**
- * See: [PropertyMetadata] for docs.
+ * See: [InputMetadata] for docs.
  */
-class Property extends PropertyMetadata {
-  const Property([String bindingPropertyName])
+class Input extends InputMetadata {
+  const Input([String bindingPropertyName])
     : super(bindingPropertyName);
 }
 
 /**
- * See: [EventMetadata] for docs.
+ * See: [OutputMetadata] for docs.
  */
-class Event extends EventMetadata {
-  const Event([String bindingPropertyName])
+class Output extends OutputMetadata {
+  const Output([String bindingPropertyName])
     : super(bindingPropertyName);
 }
 

@@ -42,7 +42,7 @@ export class CodegenNameUtil {
    * See [sanitizeName] for details.
    */
   _sanitizedNames: string[];
-  _sanitizedEventNames: Map<EventBinding, string[]>;
+  _sanitizedEventNames = new Map<EventBinding, string[]>();
 
   constructor(private _records: ProtoRecord[], private _eventBindings: EventBinding[],
               private _directiveRecords: any[], private _utilName: string) {
@@ -52,7 +52,6 @@ export class CodegenNameUtil {
       this._sanitizedNames[i + 1] = sanitizeName(`${this._records[i].name}${i}`);
     }
 
-    this._sanitizedEventNames = new Map();
     for (var ebIndex = 0; ebIndex < _eventBindings.length; ++ebIndex) {
       var eb = _eventBindings[ebIndex];
       var names = [_CONTEXT_ACCESSOR];
@@ -110,8 +109,8 @@ export class CodegenNameUtil {
       }
     }
     var assignmentsCode =
-        ListWrapper.isEmpty(assignments) ? '' : `${ListWrapper.join(assignments, '=')} = false;`;
-    return `var ${ListWrapper.join(declarations, ',')};${assignmentsCode}`;
+        ListWrapper.isEmpty(assignments) ? '' : `${assignments.join('=')} = false;`;
+    return `var ${declarations.join(',')};${assignmentsCode}`;
   }
 
   /**
@@ -170,20 +169,16 @@ export class CodegenNameUtil {
 
     // At least one assignment.
     fields.push(`${this._utilName}.uninitialized;`);
-    return ListWrapper.join(fields, ' = ');
+    return fields.join(' = ');
   }
 
   /**
    * Generates statements destroying all pipe variables.
    */
   genPipeOnDestroy(): string {
-    return ListWrapper.join(
-        ListWrapper.map(
-            ListWrapper.filter(this._records, (r) => { return r.isPipeRecord(); }),
-            (r) => {
-              return `${this._utilName}.callPipeOnDestroy(${this.getPipeName(r.selfIndex)});`;
-            }),
-        '\n');
+    return ListWrapper.filter(this._records, (r) => { return r.isPipeRecord(); })
+        .map(r => `${this._utilName}.callPipeOnDestroy(${this.getPipeName(r.selfIndex)});`)
+        .join('\n');
   }
 
   getPipeName(idx: number): string {

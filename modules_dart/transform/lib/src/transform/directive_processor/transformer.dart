@@ -3,11 +3,11 @@ library angular2.transform.directive_processor.transformer;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:angular2/src/core/dom/html_adapter.dart';
 import 'package:angular2/src/transform/common/asset_reader.dart';
 import 'package:angular2/src/transform/common/logging.dart' as log;
 import 'package:angular2/src/transform/common/names.dart';
 import 'package:angular2/src/transform/common/options.dart';
-import 'package:angular2/src/transform/common/ng_meta.dart';
 import 'package:barback/barback.dart';
 
 import 'rewriter.dart';
@@ -23,6 +23,7 @@ import 'rewriter.dart';
 /// be followed by {@link DirectiveLinker}.
 class DirectiveProcessor extends Transformer implements DeclaringTransformer {
   final TransformerOptions options;
+  final _encoder = const JsonEncoder.withIndent('  ');
 
   DirectiveProcessor(this.options);
 
@@ -34,36 +35,27 @@ class DirectiveProcessor extends Transformer implements DeclaringTransformer {
   /// determine that one or the other will not be emitted.
   @override
   declareOutputs(DeclaringTransform transform) {
-    transform.declareOutput(
-        transform.primaryId.changeExtension(ALIAS_EXTENSION));
-    transform.declareOutput(
-        transform.primaryId.changeExtension(DEPS_EXTENSION));
+    transform.declareOutput(_ngMetaAssetId(transform.primaryId));
   }
 
   @override
   Future apply(Transform transform) async {
+    Html5LibDomAdapter.makeCurrent();
     await log.initZoned(transform, () async {
-      var asset = transform.primaryInput;
+      var primaryId = transform.primaryInput.id;
       var reader = new AssetReader.fromTransform(transform);
-      var ngMeta = new NgMeta.empty();
-      var ngDepsModel = await createNgDeps(
-          reader, asset.id, options.annotationMatcher, ngMeta,
-          inlineViews: options.inlineViews);
-      if (ngDepsModel != null) {
-        var ngDepsAssetId =
-            transform.primaryInput.id.changeExtension(DEPS_JSON_EXTENSION);
-        if (await transform.hasInput(ngDepsAssetId)) {
-          log.logger.error('Clobbering ${ngDepsAssetId}. '
-              'This probably will not end well');
-        }
-        transform.addOutput(new Asset.fromString(ngDepsAssetId, ngDepsModel.writeToJson()));
+      var ngMeta =
+          await createNgMeta(reader, primaryId, options.annotationMatcher);
+      if (ngMeta == null || ngMeta.isEmpty) {
+        return;
       }
-      if (!ngMeta.isEmpty) {
-        var ngAliasesId =
-            transform.primaryInput.id.changeExtension(ALIAS_EXTENSION);
-        transform.addOutput(new Asset.fromString(ngAliasesId,
-            new JsonEncoder.withIndent("  ").convert(ngMeta.toJson())));
-      }
+      transform.addOutput(new Asset.fromString(
+          _ngMetaAssetId(primaryId), _encoder.convert(ngMeta.toJson())));
     });
   }
+}
+
+AssetId _ngMetaAssetId(AssetId primaryInputId) {
+  return new AssetId(
+      primaryInputId.package, toMetaExtension(primaryInputId.path));
 }

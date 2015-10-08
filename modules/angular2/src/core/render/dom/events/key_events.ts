@@ -12,7 +12,7 @@ import {NgZone} from 'angular2/src/core/zone/ng_zone';
 import {Injectable} from 'angular2/src/core/di';
 
 var modifierKeys = ['alt', 'control', 'meta', 'shift'];
-var modifierKeyGetters: StringMap<string, Function> = {
+var modifierKeyGetters: {[key: string]: Function} = {
   'alt': (event) => event.altKey,
   'control': (event) => event.ctrlKey,
   'meta': (event) => event.metaKey,
@@ -38,20 +38,20 @@ export class KeyEventsPlugin extends EventManagerPlugin {
     });
   }
 
-  static parseEventName(eventName: string): StringMap<string, string> {
-    var parts = eventName.toLowerCase().split('.');
+  static parseEventName(eventName: string): {[key: string]: string} {
+    var parts: string[] = eventName.toLowerCase().split('.');
 
-    var domEventName = ListWrapper.removeAt(parts, 0);
+    var domEventName = parts.shift();
     if ((parts.length === 0) ||
         !(StringWrapper.equals(domEventName, 'keydown') ||
           StringWrapper.equals(domEventName, 'keyup'))) {
       return null;
     }
 
-    var key = KeyEventsPlugin._normalizeKey(ListWrapper.removeLast(parts));
+    var key = KeyEventsPlugin._normalizeKey(parts.pop());
 
     var fullKey = '';
-    ListWrapper.forEach(modifierKeys, (modifierName) => {
+    modifierKeys.forEach(modifierName => {
       if (ListWrapper.contains(parts, modifierName)) {
         ListWrapper.remove(parts, modifierName);
         fullKey += modifierName + '.';
@@ -78,7 +78,7 @@ export class KeyEventsPlugin extends EventManagerPlugin {
     } else if (StringWrapper.equals(key, '.')) {
       key = 'dot';  // because '.' is used as a separator in event names
     }
-    ListWrapper.forEach(modifierKeys, (modifierName) => {
+    modifierKeys.forEach(modifierName => {
       if (modifierName != key) {
         var modifierGetter = StringMapWrapper.get(modifierKeyGetters, modifierName);
         if (modifierGetter(event)) {

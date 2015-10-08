@@ -13,12 +13,19 @@ import {PipeBinding} from './pipe_binding';
 import * as cd from 'angular2/src/core/change_detection/pipes';
 
 export class ProtoPipes {
-  /**
-   * Map of {@link PipeMetadata} names to {@link PipeMetadata} implementations.
-   */
-  config: StringMap<string, PipeBinding> = {};
+  static fromBindings(bindings: PipeBinding[]): ProtoPipes {
+    var config: {[key: string]: PipeBinding} = {};
+    bindings.forEach(b => config[b.name] = b);
+    return new ProtoPipes(config);
+  }
 
-  constructor(bindings: PipeBinding[]) { bindings.forEach(b => this.config[b.name] = b); }
+  constructor(
+      /**
+      * Map of {@link PipeMetadata} names to {@link PipeMetadata} implementations.
+      */
+      public config: {[key: string]: PipeBinding}) {
+    this.config = config;
+  }
 
   get(name: string): PipeBinding {
     var binding = this.config[name];
@@ -30,7 +37,7 @@ export class ProtoPipes {
 
 
 export class Pipes implements cd.Pipes {
-  _config: StringMap<string, cd.SelectedPipe> = {};
+  _config: {[key: string]: cd.SelectedPipe} = {};
 
   constructor(public proto: ProtoPipes, public injector: Injector) {}
 

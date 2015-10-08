@@ -6,7 +6,6 @@ import {
   MapWrapper,
   Set,
   SetWrapper,
-  StringMap,
   StringMapWrapper
 } from 'angular2/src/core/facade/collection';
 import {SetterFn, GetterFn, MethodFn} from './types';
@@ -16,22 +15,18 @@ export {PlatformReflectionCapabilities} from './platform_reflection_capabilities
 
 export class ReflectionInfo {
   constructor(public annotations?: any[], public parameters?: any[][], public factory?: Function,
-              public interfaces?: any[], public propMetadata?: StringMap<string, any[]>) {}
+              public interfaces?: any[], public propMetadata?: {[key: string]: any[]}) {}
 }
 
 export class Reflector {
-  _injectableInfo: Map<any, ReflectionInfo>;
-  _getters: Map<string, GetterFn>;
-  _setters: Map<string, SetterFn>;
-  _methods: Map<string, MethodFn>;
+  _injectableInfo = new Map<any, ReflectionInfo>();
+  _getters = new Map<string, GetterFn>();
+  _setters = new Map<string, SetterFn>();
+  _methods = new Map<string, MethodFn>();
   _usedKeys: Set<any>;
   reflectionCapabilities: PlatformReflectionCapabilities;
 
   constructor(reflectionCapabilities: PlatformReflectionCapabilities) {
-    this._injectableInfo = new Map();
-    this._getters = new Map();
-    this._setters = new Map();
-    this._methods = new Map();
     this._usedKeys = null;
     this.reflectionCapabilities = reflectionCapabilities;
   }
@@ -65,17 +60,11 @@ export class Reflector {
     this._injectableInfo.set(type, typeInfo);
   }
 
-  registerGetters(getters: StringMap<string, GetterFn>): void {
-    _mergeMaps(this._getters, getters);
-  }
+  registerGetters(getters: {[key: string]: GetterFn}): void { _mergeMaps(this._getters, getters); }
 
-  registerSetters(setters: StringMap<string, SetterFn>): void {
-    _mergeMaps(this._setters, setters);
-  }
+  registerSetters(setters: {[key: string]: SetterFn}): void { _mergeMaps(this._setters, setters); }
 
-  registerMethods(methods: StringMap<string, MethodFn>): void {
-    _mergeMaps(this._methods, methods);
-  }
+  registerMethods(methods: {[key: string]: MethodFn}): void { _mergeMaps(this._methods, methods); }
 
   factory(type: Type): Function {
     if (this._containsReflectionInfo(type)) {
@@ -104,7 +93,7 @@ export class Reflector {
     }
   }
 
-  propMetadata(typeOrFunc: /*Type*/ any): StringMap<string, any[]> {
+  propMetadata(typeOrFunc: /*Type*/ any): {[key: string]: any[]} {
     if (this._injectableInfo.has(typeOrFunc)) {
       var res = this._getReflectionInfo(typeOrFunc).propMetadata;
       return isPresent(res) ? res : {};
@@ -156,10 +145,8 @@ export class Reflector {
   _containsReflectionInfo(typeOrFunc) { return this._injectableInfo.has(typeOrFunc); }
 
   importUri(type: Type): string { return this.reflectionCapabilities.importUri(type); }
-
-  moduleId(type: Type): string { return this.reflectionCapabilities.moduleId(type); }
 }
 
-function _mergeMaps(target: Map<any, any>, config: StringMap<string, Function>): void {
+function _mergeMaps(target: Map<any, any>, config: {[key: string]: Function}): void {
   StringMapWrapper.forEach(config, (v, k) => target.set(k, v));
 }

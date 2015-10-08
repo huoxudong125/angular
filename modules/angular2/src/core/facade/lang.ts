@@ -58,12 +58,8 @@ export function CONST_EXPR<T>(expr: T): T {
   return expr;
 }
 
-export function CONST(): ClassDecorator {
+export function CONST(): ClassDecorator & PropertyDecorator {
   return (target) => target;
-}
-
-export function ABSTRACT(): ClassDecorator {
-  return (t) => t;
 }
 
 export function isPresent(obj: any): boolean {
@@ -354,6 +350,7 @@ export function setValueOnPath(global: any, path: string, value: any) {
 }
 
 // When Symbol.iterator doesn't exist, retrieves the key used in es6-shim
+declare var Symbol;
 var _symbolIterator = null;
 export function getSymbolIterator(): string | symbol {
   if (isBlank(_symbolIterator)) {

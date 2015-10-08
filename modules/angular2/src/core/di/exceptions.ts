@@ -20,7 +20,7 @@ function findFirstClosedCycle(keys: any[]): any[] {
 function constructResolvingPath(keys: any[]): string {
   if (keys.length > 1) {
     var reversed = findFirstClosedCycle(ListWrapper.reversed(keys));
-    var tokenStrs = ListWrapper.map(reversed, (k) => stringify(k.token));
+    var tokenStrs = reversed.map(k => stringify(k.token));
     return " (" + tokenStrs.join(' -> ') + ")";
   } else {
     return "";
@@ -32,16 +32,16 @@ function constructResolvingPath(keys: any[]): string {
  * Base class for all errors arising from misconfigured bindings.
  */
 export class AbstractBindingError extends BaseException {
-  /** @private */
+  /** @internal */
   message: string;
 
-  /** @private */
+  /** @internal */
   keys: Key[];
 
-  /** @private */
+  /** @internal */
   injectors: Injector[];
 
-  /** @private */
+  /** @internal */
   constructResolvingMessage: Function;
 
   constructor(injector: Injector, key: Key, constructResolvingMessage: Function) {
@@ -135,13 +135,13 @@ export class CyclicDependencyError extends AbstractBindingError {
  * ```
  */
 export class InstantiationError extends WrappedException {
-  /** @private */
+  /** @internal */
   keys: Key[];
 
-  /** @private */
+  /** @internal */
   injectors: Injector[];
 
-  /** @private */
+  /** @internal */
   constructor(injector: Injector, originalException, originalStack, key: Key) {
     super("DI Exception", originalException, originalStack, null);
     this.keys = [key];
@@ -220,7 +220,7 @@ export class NoAnnotationError extends BaseException {
       if (isBlank(parameter) || parameter.length == 0) {
         signature.push('?');
       } else {
-        signature.push(ListWrapper.map(parameter, stringify).join(' '));
+        signature.push(parameter.map(stringify).join(' '));
       }
     }
     return "Cannot resolve all parameters for " + stringify(typeOrFunc) + "(" +

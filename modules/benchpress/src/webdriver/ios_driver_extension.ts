@@ -1,5 +1,4 @@
 import {bind, Binding} from 'angular2/src/core/di';
-import {ListWrapper, StringMap} from 'angular2/src/core/facade/collection';
 import {
   Json,
   isPresent,
@@ -41,7 +40,7 @@ export class IOsDriverExtension extends WebDriverExtension {
         .then((_) => this._driver.logs('performance'))
         .then((entries) => {
           var records = [];
-          ListWrapper.forEach(entries, function(entry) {
+          entries.forEach(entry => {
             var message = Json.parse(entry['message'])['message'];
             if (StringWrapper.equals(message['method'], 'Timeline.eventRecorded')) {
               records.push(message['params']['record']);
@@ -91,7 +90,7 @@ export class IOsDriverExtension extends WebDriverExtension {
 
   perfLogFeatures(): PerfLogFeatures { return new PerfLogFeatures({render: true}); }
 
-  supports(capabilities: StringMap<string, any>): boolean {
+  supports(capabilities: {[key: string]: any}): boolean {
     return StringWrapper.equals(capabilities['browserName'].toLowerCase(), 'safari');
   }
 }

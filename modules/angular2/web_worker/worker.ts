@@ -9,7 +9,7 @@ export * from '../src/core/facade';
 // export * from '../src/core/application';
 export * from '../src/core/application_ref';
 export * from '../src/core/services';
-export * from '../src/core/compiler';
+export * from '../src/core/linker';
 export * from '../src/core/lifecycle';
 export * from '../src/core/zone';
 // Do not export render in web_worker
@@ -23,7 +23,15 @@ export {
   RenderViewRef,
   RenderProtoViewRef,
   RenderFragmentRef,
-  RenderViewWithFragments
+  RenderViewWithFragments,
+  RenderTemplateCmd,
+  RenderCommandVisitor,
+  RenderTextCmd,
+  RenderNgContentCmd,
+  RenderBeginElementCmd,
+  RenderBeginComponentCmd,
+  RenderEmbeddedTemplateCmd,
+  RenderBeginCmd
 } from '../src/core/render/render';
 export * from '../src/core/directives';
 export * from '../src/core/forms';

@@ -61,6 +61,7 @@ var _chromeNumKeyPadMap = {
 
 /* tslint:disable:requireParameterType */
 export class BrowserDomAdapter extends GenericBrowserDomAdapter {
+  parse(templateHtml: string) { throw new Error("parse not implemented"); }
   static makeCurrent() { setRootDomAdapter(new BrowserDomAdapter()); }
   hasProperty(element, name: string): boolean { return name in element; }
   setProperty(el: /*element*/ any, name: string, value: any) { el[name] = value; }
@@ -164,9 +165,7 @@ export class BrowserDomAdapter extends GenericBrowserDomAdapter {
     return node;
   }
   insertBefore(el, node) { el.parentNode.insertBefore(node, el); }
-  insertAllBefore(el, nodes) {
-    ListWrapper.forEach(nodes, (n) => { el.parentNode.insertBefore(n, el); });
-  }
+  insertAllBefore(el, nodes) { nodes.forEach(n => el.parentNode.insertBefore(n, el)); }
   insertAfter(el, node) { el.parentNode.insertBefore(node, el.nextSibling); }
   setInnerHTML(el, value) { el.innerHTML = value; }
   getText(el): string { return el.textContent; }
@@ -215,7 +214,7 @@ export class BrowserDomAdapter extends GenericBrowserDomAdapter {
   getStyle(element, stylename: string): string { return element.style[stylename]; }
   tagName(element): string { return element.tagName; }
   attributeMap(element): Map<string, string> {
-    var res = new Map();
+    var res = new Map<string, string>();
     var elAttrs = element.attributes;
     for (var i = 0; i < elAttrs.length; i++) {
       var attrib = elAttrs[i];

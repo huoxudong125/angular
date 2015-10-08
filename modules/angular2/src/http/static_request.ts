@@ -1,6 +1,7 @@
 import {RequestMethods} from './enums';
 import {RequestOptions} from './base_request_options';
 import {Headers} from './headers';
+import {normalizeMethodName} from './http_utils';
 import {
   RegExpWrapper,
   CONST_EXPR,
@@ -8,7 +9,6 @@ import {
   isJsObject,
   StringWrapper
 } from 'angular2/src/core/facade/lang';
-
 
 // TODO(jeffbcross): properly implement body accessors
 /**
@@ -24,16 +24,16 @@ import {
  * One such example is when creating services that wrap higher-level services, like {@link Http},
  * where it may be useful to generate a `Request` with arbitrary headers and search params.
  *
- * ```
+ * ```typescript
  * import {Injectable, Injector} from 'angular2/angular2';
- * import {HTTP_BINDINGS, Http, Request} from 'angular2/http';
+ * import {HTTP_BINDINGS, Http, Request, RequestMethods} from 'angular2/http';
  *
  * @Injectable()
  * class AutoAuthenticator {
  *   constructor(public http:Http) {}
  *   request(url:string) {
  *     return this.http.request(new Request({
- *       method: 0, //GET.
+ *       method: RequestMethods.Get,
  *       url: url,
  *       search: 'password=123'
  *     }));
@@ -77,7 +77,7 @@ export class Request {
       }
     }
     this._body = requestOptions.body;
-    this.method = requestOptions.method;
+    this.method = normalizeMethodName(requestOptions.method);
     // TODO(jeffbcross): implement behavior
     // Defaults to 'omit', consistent with browser
     // TODO(jeffbcross): implement behavior

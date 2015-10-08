@@ -31,7 +31,7 @@ import {
 import {resolveForwardRef} from './forward_ref';
 
 /**
- * @private
+ * @internal
  */
 export class Dependency {
   constructor(public key: Key, public optional: boolean, public lowerBoundVisibility: any,
@@ -257,7 +257,7 @@ export class Binding {
  */
 export class ResolvedBinding {
   /**
-   * @private
+   * @internal
    */
   constructor(
       /**
@@ -266,23 +266,23 @@ export class ResolvedBinding {
       public key: Key,
 
       /**
-       * @private
+       * @internal
        * Factory function which can return an instance of an object represented by a key.
        */
       public resolvedFactories: ResolvedFactory[],
 
       /**
-       * @private
+       * @internal
        * Indicates if the binding is a multi-binding or a regular binding.
        */
       public multiBinding: boolean) {}
 
-  /** @private */
+  /** @internal */
   get resolvedFactory(): ResolvedFactory { return this.resolvedFactories[0]; }
 }
 
 /**
- * @private
+ * @internal
  * An internal resolved representation of a factory function created by resolving {@link Binding}.
  */
 export class ResolvedFactory {
@@ -470,7 +470,8 @@ export function resolveBinding(binding: Binding): ResolvedBinding {
  * Resolve a list of Bindings.
  */
 export function resolveBindings(bindings: Array<Type | Binding | any[]>): ResolvedBinding[] {
-  var normalized = _createListOfBindings(_normalizeBindings(bindings, new Map()));
+  var normalized = _createListOfBindings(
+      _normalizeBindings(bindings, new Map<number, _NormalizedBinding | _NormalizedBinding[]>()));
   return normalized.map(b => {
     if (b instanceof _NormalizedBinding) {
       return new ResolvedBinding(b.key, [b.resolvedFactory], false);
@@ -497,10 +498,10 @@ function _createListOfBindings(flattenedBindings: Map<number, any>): any[] {
   return MapWrapper.values(flattenedBindings);
 }
 
-function _normalizeBindings(bindings: Array<Type | Binding | any[]>,
+function _normalizeBindings(bindings: Array<Type | Binding | BindingBuilder | any[]>,
                             res: Map<number, _NormalizedBinding | _NormalizedBinding[]>):
     Map<number, _NormalizedBinding | _NormalizedBinding[]> {
-  ListWrapper.forEach(bindings, (b) => {
+  bindings.forEach(b => {
     if (b instanceof Type) {
       _normalizeBinding(bind(b).toClass(b), res);
 
@@ -555,8 +556,8 @@ function _constructDependencies(factoryFunction: Function, dependencies: any[]):
   if (isBlank(dependencies)) {
     return _dependenciesFor(factoryFunction);
   } else {
-    var params: any[][] = ListWrapper.map(dependencies, (t) => [t]);
-    return ListWrapper.map(dependencies, (t) => _extractToken(factoryFunction, t, params));
+    var params: any[][] = dependencies.map(t => [t]);
+    return dependencies.map(t => _extractToken(factoryFunction, t, params));
   }
 }
 
@@ -566,7 +567,7 @@ function _dependenciesFor(typeOrFunc): Dependency[] {
   if (ListWrapper.any(params, (p) => isBlank(p))) {
     throw new NoAnnotationError(typeOrFunc, params);
   }
-  return ListWrapper.map(params, (p: any[]) => _extractToken(typeOrFunc, p, params));
+  return params.map((p: any[]) => _extractToken(typeOrFunc, p, params));
 }
 
 function _extractToken(typeOrFunc, metadata /*any[] | any*/, params: any[][]): Dependency {

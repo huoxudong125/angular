@@ -26,6 +26,7 @@ export {NgFormModel} from './forms/directives/ng_form_model';
 export {NgForm} from './forms/directives/ng_form';
 export {ControlValueAccessor} from './forms/directives/control_value_accessor';
 export {DefaultValueAccessor} from './forms/directives/default_value_accessor';
+export {NgControlStatus} from './forms/directives/ng_control_status';
 export {CheckboxControlValueAccessor} from './forms/directives/checkbox_value_accessor';
 export {
   NgSelectOption,
@@ -39,4 +40,13 @@ export {FormBuilder} from './forms/form_builder';
 import {FormBuilder} from './forms/form_builder';
 import {CONST_EXPR, Type} from './facade/lang';
 
+/**
+ * Shorthand set of bindings used for building Angular forms.
+ *
+ * ### Example:
+ *
+ * ```typescript
+ * bootstrap(MyApp, [FORM_BINDINGS]);
+ * ```
+ */
 export const FORM_BINDINGS: Type[] = CONST_EXPR([FormBuilder]);

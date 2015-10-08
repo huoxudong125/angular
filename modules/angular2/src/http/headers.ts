@@ -5,7 +5,6 @@ import {
   Map,
   MapWrapper,
   ListWrapper,
-  StringMap
 } from 'angular2/src/core/facade/collection';
 
 /**
@@ -36,16 +35,16 @@ import {
  */
 export class Headers {
   _headersMap: Map<string, string[]>;
-  constructor(headers?: Headers | StringMap<string, any>) {
+  constructor(headers?: Headers | {[key: string]: any}) {
     if (isBlank(headers)) {
-      this._headersMap = new Map();
+      this._headersMap = new Map<string, string[]>();
       return;
     }
 
     if (headers instanceof Headers) {
       this._headersMap = (<Headers>headers)._headersMap;
-    } else if (headers instanceof StringMap) {
-      this._headersMap = MapWrapper.createFromStringMap<string[]>(headers);
+    } else /*if (headers instanceof StringMap)*/ {
+      this._headersMap = MapWrapper.createFromStringMap<string[]>(<{[key: string]: any}>headers);
       MapWrapper.forEach(this._headersMap, (v, k) => {
         if (!isListLikeIterable(v)) {
           var list = [];

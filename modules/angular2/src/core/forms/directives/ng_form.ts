@@ -85,7 +85,7 @@ const formDirectiveBinding =
   host: {
     '(submit)': 'onSubmit()',
   },
-  events: ['ngSubmit'],
+  outputs: ['ngSubmit'],
   exportAs: 'form'
 })
 export class NgForm extends ControlContainer implements Form {
@@ -98,7 +98,7 @@ export class NgForm extends ControlContainer implements Form {
 
   get path(): string[] { return []; }
 
-  get controls(): StringMap<string, AbstractControl> { return this.form.controls; }
+  get controls(): {[key: string]: AbstractControl} { return this.form.controls; }
 
   addControl(dir: NgControl): void {
     this._later(_ => {
@@ -158,7 +158,7 @@ export class NgForm extends ControlContainer implements Form {
   }
 
   _findContainer(path: string[]): ControlGroup {
-    ListWrapper.removeLast(path);
+    path.pop();
     return ListWrapper.isEmpty(path) ? this.form : <ControlGroup>this.form.find(path);
   }
 

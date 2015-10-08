@@ -31,9 +31,11 @@ import {
   Validators,
 } from 'angular2/core';
 import {By} from 'angular2/src/core/debug';
+import {ListWrapper} from 'angular2/src/core/facade/collection';
 
 export function main() {
   describe("integration tests", () => {
+
     it("should initialize DOM elements with the given form object",
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
          var t = `<div [ng-form-model]="form">
@@ -301,24 +303,26 @@ export function main() {
          }));
 
       it("should support <select> with a dynamic list of options",
-         inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
-           var t = `<div [ng-form-model]="form">
+         inject([TestComponentBuilder], fakeAsync((tcb: TestComponentBuilder) => {
+                  var t = `<div [ng-form-model]="form">
                       <select ng-control="city">
                         <option *ng-for="#c of data" [value]="c"></option>
                       </select>
                   </div>`;
 
-           tcb.overrideTemplate(MyComp, t).createAsync(MyComp).then((rootTC) => {
-             rootTC.debugElement.componentInstance.form =
-                 new ControlGroup({"city": new Control("NYC")});
-             rootTC.debugElement.componentInstance.data = ['SF', 'NYC'];
-             rootTC.detectChanges();
+                  var rootTC;
+                  tcb.overrideTemplate(MyComp, t).createAsync(MyComp).then((rtc) => rootTC = rtc);
+                  tick();
 
-             var select = rootTC.debugElement.query(By.css('select'));
-             expect(select.nativeElement.value).toEqual('NYC');
-             async.done();
-           });
-         }));
+                  rootTC.debugElement.componentInstance.form =
+                      new ControlGroup({"city": new Control("NYC")});
+                  rootTC.debugElement.componentInstance.data = ['SF', 'NYC'];
+                  rootTC.detectChanges();
+                  tick();
+
+                  var select = rootTC.debugElement.query(By.css('select'));
+                  expect(select.nativeElement.value).toEqual('NYC');
+                })));
 
       it("should support custom value accessors",
          inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
@@ -657,21 +661,18 @@ export function main() {
              rootTC.detectChanges();
 
              var input = rootTC.debugElement.query(By.css("input")).nativeElement;
-             expect(DOM.classList(input))
-                 .toEqual(['ng-binding', 'ng-invalid', 'ng-pristine', 'ng-untouched']);
+             expect(sortedClassList(input)).toEqual(['ng-invalid', 'ng-pristine', 'ng-untouched']);
 
              dispatchEvent(input, "blur");
              rootTC.detectChanges();
 
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-invalid", "ng-pristine", "ng-touched"]);
+             expect(sortedClassList(input)).toEqual(["ng-invalid", "ng-pristine", "ng-touched"]);
 
              input.value = "updatedValue";
              dispatchEvent(input, "change");
              rootTC.detectChanges();
 
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-touched", "ng-dirty", "ng-valid"]);
+             expect(sortedClassList(input)).toEqual(["ng-dirty", "ng-touched", "ng-valid"]);
              async.done();
            });
          }));
@@ -687,21 +688,18 @@ export function main() {
              rootTC.detectChanges();
 
              var input = rootTC.debugElement.query(By.css("input")).nativeElement;
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-invalid", "ng-pristine", "ng-untouched"]);
+             expect(sortedClassList(input)).toEqual(["ng-invalid", "ng-pristine", "ng-untouched"]);
 
              dispatchEvent(input, "blur");
              rootTC.detectChanges();
 
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-invalid", "ng-pristine", "ng-touched"]);
+             expect(sortedClassList(input)).toEqual(["ng-invalid", "ng-pristine", "ng-touched"]);
 
              input.value = "updatedValue";
              dispatchEvent(input, "change");
              rootTC.detectChanges();
 
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-touched", "ng-dirty", "ng-valid"]);
+             expect(sortedClassList(input)).toEqual(["ng-dirty", "ng-touched", "ng-valid"]);
              async.done();
            });
          }));
@@ -715,21 +713,18 @@ export function main() {
              rootTC.detectChanges();
 
              var input = rootTC.debugElement.query(By.css("input")).nativeElement;
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-invalid", "ng-pristine", "ng-untouched"]);
+             expect(sortedClassList(input)).toEqual(["ng-invalid", "ng-pristine", "ng-untouched"]);
 
              dispatchEvent(input, "blur");
              rootTC.detectChanges();
 
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-invalid", "ng-pristine", "ng-touched"]);
+             expect(sortedClassList(input)).toEqual(["ng-invalid", "ng-pristine", "ng-touched"]);
 
              input.value = "updatedValue";
              dispatchEvent(input, "change");
              rootTC.detectChanges();
 
-             expect(DOM.classList(input))
-                 .toEqual(["ng-binding", "ng-touched", "ng-dirty", "ng-valid"]);
+             expect(sortedClassList(input)).toEqual(["ng-dirty", "ng-touched", "ng-valid"]);
              async.done();
            });
          }));
@@ -800,6 +795,19 @@ export function main() {
                   rootTC.detectChanges();
                   expect(input.value).toEqual("aa");
                 })));
+      it("should not crash when validity is checked from a binding",
+         inject([TestComponentBuilder], fakeAsync((tcb: TestComponentBuilder) => {
+                  // {{x.valid}} used to crash because valid() tried to read a property
+                  // from form.control before it was set. This test verifies this bug is
+                  // fixed.
+                  var t = `<form><div ng-control-group="x" #x="form">
+                  <input type="text" ng-control="test"></div>{{x.valid}}</form>`;
+                  var rootTC: RootTestComponent;
+                  tcb.overrideTemplate(MyComp, t).createAsync(MyComp).then(
+                      (root) => { rootTC = root; });
+                  tick();
+                  rootTC.detectChanges();
+                })));
     });
   });
 }
@@ -828,4 +836,10 @@ class MyComp {
   form: any;
   name: string;
   data: any;
+}
+
+function sortedClassList(el) {
+  var l = DOM.classList(el);
+  ListWrapper.sort(l);
+  return l;
 }

@@ -1,11 +1,11 @@
 import {Map, MapWrapper, ListWrapper} from 'angular2/src/core/facade/collection';
 import {Type, isPresent, stringify, isBlank, print} from 'angular2/src/core/facade/lang';
 import {DirectiveMetadata, ComponentMetadata} from '../core/metadata';
-import {DirectiveResolver} from 'angular2/src/core/compiler/directive_resolver';
+import {DirectiveResolver} from 'angular2/src/core/linker/directive_resolver';
 
 export class MockDirectiveResolver extends DirectiveResolver {
-  private _bindingsOverrides: Map<Type, any[]> = new Map();
-  private _viewBindingsOverrides: Map<Type, any[]> = new Map();
+  private _bindingsOverrides = new Map<Type, any[]>();
+  private _viewBindingsOverrides = new Map<Type, any[]>();
 
   resolve(type: Type): DirectiveMetadata {
     var dm = super.resolve(type);
@@ -26,13 +26,12 @@ export class MockDirectiveResolver extends DirectiveResolver {
 
       return new ComponentMetadata({
         selector: dm.selector,
-        properties: dm.properties,
-        events: dm.events,
+        inputs: dm.inputs,
+        outputs: dm.outputs,
         host: dm.host,
         bindings: bindings,
         exportAs: dm.exportAs,
         moduleId: dm.moduleId,
-        compileChildren: dm.compileChildren,
         queries: dm.queries,
         changeDetection: dm.changeDetection,
         viewBindings: viewBindings
@@ -41,13 +40,12 @@ export class MockDirectiveResolver extends DirectiveResolver {
 
     return new DirectiveMetadata({
       selector: dm.selector,
-      properties: dm.properties,
-      events: dm.events,
+      inputs: dm.inputs,
+      outputs: dm.outputs,
       host: dm.host,
       bindings: bindings,
       exportAs: dm.exportAs,
       moduleId: dm.moduleId,
-      compileChildren: dm.compileChildren,
       queries: dm.queries
     });
   }

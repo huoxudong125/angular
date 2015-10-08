@@ -5,9 +5,8 @@ import {RequestOptionsArgs, Connection, ConnectionBackend} from './interfaces';
 import {Request} from './static_request';
 import {BaseRequestOptions, RequestOptions} from './base_request_options';
 import {RequestMethods} from './enums';
-import {EventEmitter} from 'angular2/src/core/facade/async';
 
-function httpRequest(backend: ConnectionBackend, request: Request): EventEmitter {
+function httpRequest(backend: ConnectionBackend, request: Request): any {
   return backend.createConnection(request).response;
 }
 
@@ -34,30 +33,18 @@ function mergeOptions(defaultOpts, providedOpts, method, url): RequestOptions {
  * Performs http requests using `XMLHttpRequest` as the default backend.
  *
  * `Http` is available as an injectable class, with methods to perform http requests. Calling
- * `request` returns an {@link EventEmitter} which will emit a single {@link Response} when a
+ * `request` returns an {@link Observable} which will emit a single {@link Response} when a
  * response is received.
- *
- *
- * ## Breaking Change
- *
- * Previously, methods of `Http` would return an RxJS Observable directly. For now,
- * the `toRx()` method of {@link EventEmitter} needs to be called in order to get the RxJS
- * Subject. `EventEmitter` does not provide combinators like `map`, and has different semantics for
- * subscribing/observing. This is temporary; the result of all `Http` method calls will be either an
- * Observable
- * or Dart Stream when [issue #2794](https://github.com/angular/angular/issues/2794) is resolved.
  *
  * #Example
  *
- * ```
+ * ```typescript
  * import {Http, HTTP_BINDINGS} from 'angular2/http';
  * @Component({selector: 'http-app', viewBindings: [HTTP_BINDINGS]})
  * @View({templateUrl: 'people.html'})
  * class PeopleComponent {
  *   constructor(http: Http) {
  *     http.get('people.json')
- *       //Get the RxJS Subject
- *       .toRx()
  *       // Call map on the response observable to get the parsed people object
  *       .map(res => res.json())
  *       // Subscribe to the observable to get the parsed people object and attach it to the
@@ -67,9 +54,6 @@ function mergeOptions(defaultOpts, providedOpts, method, url): RequestOptions {
  * }
  * ```
  *
- * To use the {@link EventEmitter} returned by `Http`, simply pass a generator (See "interface
- *Generator" in the Async Generator spec: https://github.com/jhusain/asyncgenerator) to the
- *`observer` method of the returned emitter, with optional methods of `next`, `throw`, and `return`.
  *
  * #Example
  *
@@ -83,7 +67,7 @@ function mergeOptions(defaultOpts, providedOpts, method, url): RequestOptions {
  *
  * #Example
  *
- * ```
+ * ```typescript
  * import {MockBackend, BaseRequestOptions, Http} from 'angular2/http';
  * var injector = Injector.resolveAndCreate([
  *   BaseRequestOptions,
@@ -95,7 +79,7 @@ function mergeOptions(defaultOpts, providedOpts, method, url): RequestOptions {
  *       [MockBackend, BaseRequestOptions])
  * ]);
  * var http = injector.get(Http);
- * http.get('request-from-mock-backend.json').toRx().subscribe((res:Response) => doSomething(res));
+ * http.get('request-from-mock-backend.json').subscribe((res:Response) => doSomething(res));
  * ```
  *
  **/
@@ -109,8 +93,8 @@ export class Http {
    * object can be provided as the 2nd argument. The options object will be merged with the values
    * of {@link BaseRequestOptions} before performing the request.
    */
-  request(url: string | Request, options?: RequestOptionsArgs): EventEmitter {
-    var responseObservable: EventEmitter;
+  request(url: string | Request, options?: RequestOptionsArgs): any {
+    var responseObservable: any;
     if (isString(url)) {
       responseObservable = httpRequest(
           this._backend,
@@ -126,7 +110,7 @@ export class Http {
   /**
    * Performs a request with `get` http method.
    */
-  get(url: string, options?: RequestOptionsArgs): EventEmitter {
+  get(url: string, options?: RequestOptionsArgs): any {
     return httpRequest(this._backend, new Request(mergeOptions(this._defaultOptions, options,
                                                                RequestMethods.Get, url)));
   }
@@ -134,7 +118,7 @@ export class Http {
   /**
    * Performs a request with `post` http method.
    */
-  post(url: string, body: string, options?: RequestOptionsArgs): EventEmitter {
+  post(url: string, body: string, options?: RequestOptionsArgs): any {
     return httpRequest(
         this._backend,
         new Request(mergeOptions(this._defaultOptions.merge(new RequestOptions({body: body})),
@@ -144,7 +128,7 @@ export class Http {
   /**
    * Performs a request with `put` http method.
    */
-  put(url: string, body: string, options?: RequestOptionsArgs): EventEmitter {
+  put(url: string, body: string, options?: RequestOptionsArgs): any {
     return httpRequest(
         this._backend,
         new Request(mergeOptions(this._defaultOptions.merge(new RequestOptions({body: body})),
@@ -154,7 +138,7 @@ export class Http {
   /**
    * Performs a request with `delete` http method.
    */
-  delete (url: string, options?: RequestOptionsArgs): EventEmitter {
+  delete (url: string, options?: RequestOptionsArgs): any {
     return httpRequest(this._backend, new Request(mergeOptions(this._defaultOptions, options,
                                                                RequestMethods.Delete, url)));
   }
@@ -162,7 +146,7 @@ export class Http {
   /**
    * Performs a request with `patch` http method.
    */
-  patch(url: string, body: string, options?: RequestOptionsArgs): EventEmitter {
+  patch(url: string, body: string, options?: RequestOptionsArgs): any {
     return httpRequest(
         this._backend,
         new Request(mergeOptions(this._defaultOptions.merge(new RequestOptions({body: body})),
@@ -172,7 +156,7 @@ export class Http {
   /**
    * Performs a request with `head` http method.
    */
-  head(url: string, options?: RequestOptionsArgs): EventEmitter {
+  head(url: string, options?: RequestOptionsArgs): any {
     return httpRequest(this._backend, new Request(mergeOptions(this._defaultOptions, options,
                                                                RequestMethods.Head, url)));
   }
@@ -190,8 +174,8 @@ export class Jsonp extends Http {
    * object can be provided as the 2nd argument. The options object will be merged with the values
    * of {@link BaseRequestOptions} before performing the request.
    */
-  request(url: string | Request, options?: RequestOptionsArgs): EventEmitter {
-    var responseObservable: EventEmitter;
+  request(url: string | Request, options?: RequestOptionsArgs): any {
+    var responseObservable: any;
     if (isString(url)) {
       url = new Request(mergeOptions(this._defaultOptions, options, RequestMethods.Get, url));
     }

@@ -6,14 +6,14 @@ import {ListWrapper, MapWrapper} from 'angular2/src/core/facade/collection';
 
 import {ViewMetadata} from '../core/metadata';
 
-import {DirectiveResolver} from 'angular2/src/core/compiler/directive_resolver';
-import {ViewResolver} from 'angular2/src/core/compiler/view_resolver';
-import {AppView} from 'angular2/src/core/compiler/view';
-import {internalView, ViewRef} from 'angular2/src/core/compiler/view_ref';
+import {DirectiveResolver} from 'angular2/src/core/linker/directive_resolver';
+import {ViewResolver} from 'angular2/src/core/linker/view_resolver';
+import {AppView} from 'angular2/src/core/linker/view';
+import {internalView, ViewRef} from 'angular2/src/core/linker/view_ref';
 import {
   DynamicComponentLoader,
   ComponentRef
-} from 'angular2/src/core/compiler/dynamic_component_loader';
+} from 'angular2/src/core/linker/dynamic_component_loader';
 
 import {el} from './utils';
 
@@ -28,7 +28,7 @@ export class RootTestComponent {
   debugElement: DebugElement;
 
   /**
-   * @private
+   * @internal
    */
   constructor(componentRef: ComponentRef) {
     this.debugElement = new DebugElement(internalView(<ViewRef>componentRef.hostView), 0);
@@ -52,20 +52,14 @@ var _nextRootElementId = 0;
  */
 @Injectable()
 export class TestComponentBuilder {
-  _bindingsOverrides: Map<Type, any[]>;
-  _directiveOverrides: Map<Type, Map<Type, Type>>;
-  _templateOverrides: Map<Type, string>;
-  _viewBindingsOverrides: Map<Type, any[]>;
-  _viewOverrides: Map<Type, ViewMetadata>;
+  _bindingsOverrides = new Map<Type, any[]>();
+  _directiveOverrides = new Map<Type, Map<Type, Type>>();
+  _templateOverrides = new Map<Type, string>();
+  _viewBindingsOverrides = new Map<Type, any[]>();
+  _viewOverrides = new Map<Type, ViewMetadata>();
 
 
-  constructor(private _injector: Injector) {
-    this._bindingsOverrides = new Map();
-    this._directiveOverrides = new Map();
-    this._templateOverrides = new Map();
-    this._viewBindingsOverrides = new Map();
-    this._viewOverrides = new Map();
-  }
+  constructor(private _injector: Injector) {}
 
   _clone(): TestComponentBuilder {
     var clone = new TestComponentBuilder(this._injector);
@@ -117,7 +111,7 @@ export class TestComponentBuilder {
     var clone = this._clone();
     var overridesForComponent = clone._directiveOverrides.get(componentType);
     if (!isPresent(overridesForComponent)) {
-      clone._directiveOverrides.set(componentType, new Map());
+      clone._directiveOverrides.set(componentType, new Map<Type, Type>());
       overridesForComponent = clone._directiveOverrides.get(componentType);
     }
     overridesForComponent.set(from, to);

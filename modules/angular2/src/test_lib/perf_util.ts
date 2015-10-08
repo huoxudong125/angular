@@ -5,6 +5,7 @@ var bind = benchpress.bind;
 var Options = benchpress.Options;
 
 export function runClickBenchmark(config) {
+  browser.ignoreSynchronization = !config.waitForAngular2;
   var buttons = config.buttons.map(function(selector) { return $(selector); });
   config.work = function() { buttons.forEach(function(button) { button.click(); }); };
   return runBenchmark(config);

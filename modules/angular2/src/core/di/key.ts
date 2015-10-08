@@ -46,10 +46,10 @@ export class Key {
 }
 
 /**
- * @private
+ * @internal
  */
 export class KeyRegistry {
-  private _allKeys: Map<Object, Key> = new Map();
+  private _allKeys = new Map<Object, Key>();
 
   get(token: Object): Key {
     if (token instanceof Key) return token;

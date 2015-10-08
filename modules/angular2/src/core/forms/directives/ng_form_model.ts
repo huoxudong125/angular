@@ -92,9 +92,9 @@ const formDirectiveBinding =
 @Directive({
   selector: '[ng-form-model]',
   bindings: [formDirectiveBinding],
-  properties: ['form: ng-form-model'],
+  inputs: ['form: ng-form-model'],
   host: {'(submit)': 'onSubmit()'},
-  events: ['ngSubmit'],
+  outputs: ['ngSubmit'],
   exportAs: 'form'
 })
 export class NgFormModel extends ControlContainer implements Form,
@@ -141,7 +141,7 @@ export class NgFormModel extends ControlContainer implements Form,
   }
 
   _updateDomValue() {
-    ListWrapper.forEach(this.directives, dir => {
+    this.directives.forEach(dir => {
       var ctrl: any = this.form.find(dir.path);
       dir.valueAccessor.writeValue(ctrl.value);
     });

@@ -1,11 +1,4 @@
-import {
-  Directive,
-  LifecycleEvent,
-  Attribute,
-  Host,
-  SkipSelf,
-  AfterContentChecked
-} from 'angular2/angular2';
+import {Directive, Attribute, Host, SkipSelf, AfterContentChecked} from 'angular2/angular2';
 
 import {ObservableWrapper, EventEmitter} from 'angular2/src/core/facade/async';
 
@@ -65,7 +58,7 @@ export class MdInputContainer implements AfterContentChecked {
 
 @Directive({
   selector: 'md-input-container input',
-  events: ['mdChange', 'mdFocusChange'],
+  outputs: ['mdChange', 'mdFocusChange'],
   host: {
     'class': 'md-input',
     '(input)': 'updateValue($event)',

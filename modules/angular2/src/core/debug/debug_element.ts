@@ -3,10 +3,10 @@ import {ListWrapper, MapWrapper, Predicate} from 'angular2/src/core/facade/colle
 
 import {DOM} from 'angular2/src/core/dom/dom_adapter';
 
-import {ElementInjector} from 'angular2/src/core/compiler/element_injector';
-import {AppView} from 'angular2/src/core/compiler/view';
-import {internalView} from 'angular2/src/core/compiler/view_ref';
-import {ElementRef} from 'angular2/src/core/compiler/element_ref';
+import {ElementInjector} from 'angular2/src/core/linker/element_injector';
+import {AppView} from 'angular2/src/core/linker/view';
+import {internalView} from 'angular2/src/core/linker/view_ref';
+import {ElementRef} from 'angular2/src/core/linker/element_ref';
 
 /**
  * A DebugElement contains information from the Angular compiler about an
@@ -17,7 +17,7 @@ export class DebugElement {
   _elementInjector: ElementInjector;
 
   /**
-   * @private
+   * @internal
    */
   constructor(private _parentView: AppView, private _boundElementIndex: number) {
     this._elementInjector = this._parentView.elementInjectors[this._boundElementIndex];
@@ -126,9 +126,8 @@ export class DebugElement {
 
         var views = view.viewContainers[view.elementOffset + i];
         if (isPresent(views)) {
-          ListWrapper.forEach(views.views, (nextView) => {
-            els = els.concat(this._getChildElements(nextView, null));
-          });
+          views.views.forEach(
+              (nextView) => { els = els.concat(this._getChildElements(nextView, null)); });
         }
       }
     }
@@ -155,17 +154,15 @@ export class Scope {
     var scope = [];
     scope.push(debugElement);
 
-    ListWrapper.forEach(debugElement.children,
-                        (child) => { scope = scope.concat(Scope.all(child)); });
+    debugElement.children.forEach(child => scope = scope.concat(Scope.all(child)));
 
-    ListWrapper.forEach(debugElement.componentViewChildren,
-                        (child) => { scope = scope.concat(Scope.all(child)); });
+    debugElement.componentViewChildren.forEach(child => scope = scope.concat(Scope.all(child)));
 
     return scope;
   }
   static light(debugElement: DebugElement): DebugElement[] {
     var scope = [];
-    ListWrapper.forEach(debugElement.children, (child) => {
+    debugElement.children.forEach(child => {
       scope.push(child);
       scope = scope.concat(Scope.light(child));
     });
@@ -175,7 +172,7 @@ export class Scope {
   static view(debugElement: DebugElement): DebugElement[] {
     var scope = [];
 
-    ListWrapper.forEach(debugElement.componentViewChildren, (child) => {
+    debugElement.componentViewChildren.forEach(child => {
       scope.push(child);
       scope = scope.concat(Scope.light(child));
     });

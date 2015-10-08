@@ -1,5 +1,5 @@
 import {Injectable} from 'angular2/src/core/di';
-import {StringMapWrapper, ListWrapper} from 'angular2/src/core/facade/collection';
+import {StringMapWrapper} from 'angular2/src/core/facade/collection';
 import {isPresent, isArray} from 'angular2/src/core/facade/lang';
 import * as modelModule from './model';
 
@@ -66,8 +66,8 @@ import * as modelModule from './model';
  */
 @Injectable()
 export class FormBuilder {
-  group(controlsConfig: StringMap<string, any>,
-        extra: StringMap<string, any> = null): modelModule.ControlGroup {
+  group(controlsConfig: {[key: string]: any},
+        extra: {[key: string]: any} = null): modelModule.ControlGroup {
     var controls = this._reduceControls(controlsConfig);
     var optionals = isPresent(extra) ? StringMapWrapper.get(extra, "optionals") : null;
     var validator = isPresent(extra) ? StringMapWrapper.get(extra, "validator") : null;
@@ -88,7 +88,7 @@ export class FormBuilder {
   }
 
   array(controlsConfig: any[], validator: Function = null): modelModule.ControlArray {
-    var controls = ListWrapper.map(controlsConfig, (c) => this._createControl(c));
+    var controls = controlsConfig.map(c => this._createControl(c));
     if (isPresent(validator)) {
       return new modelModule.ControlArray(controls, validator);
     } else {
@@ -96,8 +96,8 @@ export class FormBuilder {
     }
   }
 
-  _reduceControls(controlsConfig: any): StringMap<string, modelModule.AbstractControl> {
-    var controls = {};
+  _reduceControls(controlsConfig: any): {[key: string]: modelModule.AbstractControl} {
+    var controls: {[key: string]: modelModule.AbstractControl} = {};
     StringMapWrapper.forEach(controlsConfig, (controlConfig, controlName) => {
       controls[controlName] = this._createControl(controlConfig);
     });

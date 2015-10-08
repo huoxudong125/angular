@@ -7,10 +7,10 @@ import {
 } from 'angular2/src/core/facade/collection';
 
 function paramParser(rawParams: string = ''): Map<string, string[]> {
-  var map: Map<string, string[]> = new Map();
+  var map = new Map<string, string[]>();
   if (rawParams.length > 0) {
     var params: string[] = StringWrapper.split(rawParams, new RegExp('&'));
-    ListWrapper.forEach(params, (param: string) => {
+    params.forEach((param: string) => {
       var split: string[] = StringWrapper.split(param, new RegExp('='));
       var key = split[0];
       var val = split[1];
@@ -21,9 +21,6 @@ function paramParser(rawParams: string = ''): Map<string, string[]> {
   }
   return map;
 }
-
-// TODO(caitp): This really should not be needed. Issue with ts2dart.
-export const URLSearchParamsUnionFixer: string = CONST_EXPR("UnionFixer");
 
 /**
  * Map-like representation of url search parameters, based on
@@ -130,10 +127,9 @@ export class URLSearchParams {
 
   toString(): string {
     var paramsList = [];
-    MapWrapper.forEach(this.paramsMap, (values, k) => {
-      ListWrapper.forEach(values, v => { paramsList.push(k + '=' + v); });
-    });
-    return ListWrapper.join(paramsList, '&');
+    MapWrapper.forEach(this.paramsMap,
+                       (values, k) => { values.forEach(v => paramsList.push(k + '=' + v)); });
+    return paramsList.join('&');
   }
 
   delete (param: string): void { MapWrapper.delete(this.paramsMap, param); }

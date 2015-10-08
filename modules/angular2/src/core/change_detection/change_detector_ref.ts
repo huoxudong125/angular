@@ -6,7 +6,7 @@ import {ChangeDetectionStrategy} from './constants';
  */
 export class ChangeDetectorRef {
   /**
-   * @private
+   * @internal
    */
   constructor(private _cd: ChangeDetector) {}
 
@@ -157,7 +157,7 @@ export class ChangeDetectorRef {
    *   }
    * }
    *
-   * @Component({selector: 'live-data', properties: ['live']})
+   * @Component({selector: 'live-data', inputs: ['live']})
    * @View({
    *   template: `Data: {{dataProvider.data}}`
    * })
