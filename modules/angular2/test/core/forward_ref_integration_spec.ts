@@ -9,21 +9,22 @@ import {
   inject,
   it,
   xit
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 import {
   bind,
+  provide,
   forwardRef,
   resolveForwardRef,
   Component,
   Directive,
   Inject,
-  NgFor,
   Query,
   QueryList,
   View
 } from 'angular2/core';
-import {Type} from 'angular2/src/core/facade/lang';
-import {asNativeElements} from 'angular2/src/core/debug';
+import {NgFor} from 'angular2/common';
+import {Type} from 'angular2/src/facade/lang';
+import {asNativeElements} from 'angular2/core';
 
 export function main() {
   describe("forwardRef integration", function() {
@@ -39,18 +40,18 @@ export function main() {
   });
 }
 
-@Component({selector: 'app', viewBindings: [forwardRef(() => Frame)]})
+@Component({selector: 'app', viewProviders: [forwardRef(() => Frame)]})
 @View({
   template: `<door><lock></lock></door>`,
-  directives: [forwardRef(() => Door), forwardRef(() => Lock)]
+  directives: [forwardRef(() => Door), forwardRef(() => Lock)],
 })
 class App {
 }
 
-@Component({selector: 'Lock'})
+@Component({selector: 'lock'})
 @View({
   directives: [NgFor],
-  template: `{{frame.name}}(<span *ng-for="var lock of locks">{{lock.name}}</span>)`
+  template: `{{frame.name}}(<span *ngFor="var lock of locks">{{lock.name}}</span>)`,
 })
 class Door {
   locks: QueryList<Lock>;

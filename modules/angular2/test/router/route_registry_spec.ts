@@ -8,10 +8,10 @@ import {
   inject,
   beforeEach,
   SpyObject
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
-import {Promise, PromiseWrapper} from 'angular2/src/core/facade/async';
-import {Type} from 'angular2/src/core/facade/lang';
+import {Promise, PromiseWrapper} from 'angular2/src/facade/async';
+import {Type, IS_DART} from 'angular2/src/facade/lang';
 
 import {RouteRegistry} from 'angular2/src/router/route_registry';
 import {
@@ -21,20 +21,19 @@ import {
   AuxRoute,
   AsyncRoute
 } from 'angular2/src/router/route_config_decorator';
-import {stringifyInstruction} from 'angular2/src/router/instruction';
-import {IS_DART} from '../platform';
+
 
 export function main() {
   describe('RouteRegistry', () => {
     var registry;
 
-    beforeEach(() => { registry = new RouteRegistry(); });
+    beforeEach(() => { registry = new RouteRegistry(RootHostCmp); });
 
     it('should match the full URL', inject([AsyncTestCompleter], (async) => {
          registry.config(RootHostCmp, new Route({path: '/', component: DummyCmpA}));
          registry.config(RootHostCmp, new Route({path: '/test', component: DummyCmpB}));
 
-         registry.recognize('/test', RootHostCmp)
+         registry.recognize('/test', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyCmpB);
                async.done();
@@ -43,45 +42,52 @@ export function main() {
 
     it('should generate URLs starting at the given component', () => {
       registry.config(RootHostCmp,
-                      new Route({path: '/first/...', component: DummyParentCmp, as: 'FirstCmp'}));
+                      new Route({path: '/first/...', component: DummyParentCmp, name: 'FirstCmp'}));
 
-      expect(stringifyInstruction(registry.generate(['FirstCmp', 'SecondCmp'], RootHostCmp)))
+      var instr = registry.generate(['FirstCmp', 'SecondCmp'], []);
+      expect(stringifyInstruction(instr)).toEqual('first/second');
+
+      expect(stringifyInstruction(registry.generate(['SecondCmp'], [instr, instr.child])))
           .toEqual('first/second');
-      expect(stringifyInstruction(registry.generate(['SecondCmp'], DummyParentCmp)))
-          .toEqual('second');
-    });
-
-    it('should generate URLs that account for redirects', () => {
-      registry.config(
-          RootHostCmp,
-          new Route({path: '/first/...', component: DummyParentRedirectCmp, as: 'FirstCmp'}));
-
-      expect(stringifyInstruction(registry.generate(['FirstCmp'], RootHostCmp)))
+      expect(stringifyInstruction(registry.generate(['./SecondCmp'], [instr, instr.child])))
           .toEqual('first/second');
     });
 
-    it('should generate URLs in a hierarchy of redirects', () => {
+    it('should generate URLs that account for default routes', () => {
       registry.config(
           RootHostCmp,
-          new Route({path: '/first/...', component: DummyMultipleRedirectCmp, as: 'FirstCmp'}));
+          new Route({path: '/first/...', component: ParentWithDefaultRouteCmp, name: 'FirstCmp'}));
 
-      expect(stringifyInstruction(registry.generate(['FirstCmp'], RootHostCmp)))
-          .toEqual('first/second/third');
+      var instruction = registry.generate(['FirstCmp'], []);
+
+      expect(instruction.toLinkUrl()).toEqual('first');
+      expect(instruction.toRootUrl()).toEqual('first/second');
+    });
+
+    it('should generate URLs in a hierarchy of default routes', () => {
+      registry.config(
+          RootHostCmp,
+          new Route({path: '/first/...', component: MultipleDefaultCmp, name: 'FirstCmp'}));
+
+      var instruction = registry.generate(['FirstCmp'], []);
+
+      expect(instruction.toLinkUrl()).toEqual('first');
+      expect(instruction.toRootUrl()).toEqual('first/second/third');
     });
 
     it('should generate URLs with params', () => {
       registry.config(
           RootHostCmp,
-          new Route({path: '/first/:param/...', component: DummyParentParamCmp, as: 'FirstCmp'}));
+          new Route({path: '/first/:param/...', component: DummyParentParamCmp, name: 'FirstCmp'}));
 
-      var url = stringifyInstruction(registry.generate(
-          ['FirstCmp', {param: 'one'}, 'SecondCmp', {param: 'two'}], RootHostCmp));
+      var url = stringifyInstruction(
+          registry.generate(['FirstCmp', {param: 'one'}, 'SecondCmp', {param: 'two'}], []));
       expect(url).toEqual('first/one/second/two');
     });
 
     it('should generate params as an empty StringMap when no params are given', () => {
-      registry.config(RootHostCmp, new Route({path: '/test', component: DummyCmpA, as: 'Test'}));
-      var instruction = registry.generate(['Test'], RootHostCmp);
+      registry.config(RootHostCmp, new Route({path: '/test', component: DummyCmpA, name: 'Test'}));
+      var instruction = registry.generate(['Test'], []);
       expect(instruction.component.params).toEqual({});
     });
 
@@ -89,31 +95,39 @@ export function main() {
        inject([AsyncTestCompleter], (async) => {
          registry.config(
              RootHostCmp,
-             new AsyncRoute({path: '/first/...', loader: AsyncParentLoader, as: 'FirstCmp'}));
+             new AsyncRoute({path: '/first/...', loader: asyncParentLoader, name: 'FirstCmp'}));
 
-         expect(() => registry.generate(['FirstCmp', 'SecondCmp'], RootHostCmp))
-             .toThrowError('Could not find route named "SecondCmp".');
+         var instruction = registry.generate(['FirstCmp', 'SecondCmp'], []);
 
-         registry.recognize('/first/second', RootHostCmp)
+         expect(stringifyInstruction(instruction)).toEqual('first');
+
+         registry.recognize('/first/second', [])
              .then((_) => {
-               expect(
-                   stringifyInstruction(registry.generate(['FirstCmp', 'SecondCmp'], RootHostCmp)))
-                   .toEqual('first/second');
+               var instruction = registry.generate(['FirstCmp', 'SecondCmp'], []);
+               expect(stringifyInstruction(instruction)).toEqual('first/second');
                async.done();
              });
        }));
 
-
     it('should throw when generating a url and a parent has no config', () => {
-      expect(() => registry.generate(['FirstCmp', 'SecondCmp'], RootHostCmp))
+      expect(() => registry.generate(['FirstCmp', 'SecondCmp'], []))
           .toThrowError('Component "RootHostCmp" has no route config.');
+    });
+
+    it('should generate URLs for aux routes', () => {
+      registry.config(RootHostCmp,
+                      new Route({path: '/primary', component: DummyCmpA, name: 'Primary'}));
+      registry.config(RootHostCmp, new AuxRoute({path: '/aux', component: DummyCmpB, name: 'Aux'}));
+
+      expect(stringifyInstruction(registry.generate(['Primary', ['Aux']], [])))
+          .toEqual('primary(aux)');
     });
 
     it('should prefer static segments to dynamic', inject([AsyncTestCompleter], (async) => {
          registry.config(RootHostCmp, new Route({path: '/:site', component: DummyCmpB}));
          registry.config(RootHostCmp, new Route({path: '/home', component: DummyCmpA}));
 
-         registry.recognize('/home', RootHostCmp)
+         registry.recognize('/home', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyCmpA);
                async.done();
@@ -124,7 +138,7 @@ export function main() {
          registry.config(RootHostCmp, new Route({path: '/:site', component: DummyCmpA}));
          registry.config(RootHostCmp, new Route({path: '/*site', component: DummyCmpB}));
 
-         registry.recognize('/home', RootHostCmp)
+         registry.recognize('/home', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyCmpA);
                async.done();
@@ -135,7 +149,7 @@ export function main() {
          registry.config(RootHostCmp, new Route({path: '/:first/*rest', component: DummyCmpA}));
          registry.config(RootHostCmp, new Route({path: '/*all', component: DummyCmpB}));
 
-         registry.recognize('/some/path', RootHostCmp)
+         registry.recognize('/some/path', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyCmpA);
                async.done();
@@ -146,7 +160,7 @@ export function main() {
          registry.config(RootHostCmp, new Route({path: '/first/:second', component: DummyCmpA}));
          registry.config(RootHostCmp, new Route({path: '/:first/:second', component: DummyCmpB}));
 
-         registry.recognize('/first/second', RootHostCmp)
+         registry.recognize('/first/second', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyCmpA);
                async.done();
@@ -160,9 +174,24 @@ export function main() {
          registry.config(RootHostCmp,
                          new Route({path: '/first/:second/third', component: DummyCmpA}));
 
-         registry.recognize('/first/second/third', RootHostCmp)
+         registry.recognize('/first/second/third', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyCmpB);
+               async.done();
+             });
+       }));
+
+    it('should prefer routes with high specificity over routes with children with lower specificity',
+       inject([AsyncTestCompleter], (async) => {
+         registry.config(RootHostCmp, new Route({path: '/first', component: DummyCmpA}));
+
+         // terminates to DummyCmpB
+         registry.config(RootHostCmp,
+                         new Route({path: '/:second/...', component: SingleSlashChildCmp}));
+
+         registry.recognize('/first', [])
+             .then((instruction) => {
+               expect(instruction.component.componentType).toBe(DummyCmpA);
                async.done();
              });
        }));
@@ -170,7 +199,7 @@ export function main() {
     it('should match the full URL using child components', inject([AsyncTestCompleter], (async) => {
          registry.config(RootHostCmp, new Route({path: '/first/...', component: DummyParentCmp}));
 
-         registry.recognize('/first/second', RootHostCmp)
+         registry.recognize('/first/second', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyParentCmp);
                expect(instruction.child.component.componentType).toBe(DummyCmpB);
@@ -182,24 +211,30 @@ export function main() {
        inject([AsyncTestCompleter], (async) => {
          registry.config(RootHostCmp, new Route({path: '/first/...', component: DummyAsyncCmp}));
 
-         registry.recognize('/first/second', RootHostCmp)
+         registry.recognize('/first/second', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyAsyncCmp);
-               expect(instruction.child.component.componentType).toBe(DummyCmpB);
-               async.done();
+
+               instruction.child.resolveComponent().then((childComponentInstruction) => {
+                 expect(childComponentInstruction.componentType).toBe(DummyCmpB);
+                 async.done();
+               });
              });
        }));
 
     it('should match the URL using an async parent component',
        inject([AsyncTestCompleter], (async) => {
          registry.config(RootHostCmp,
-                         new AsyncRoute({path: '/first/...', loader: AsyncParentLoader}));
+                         new AsyncRoute({path: '/first/...', loader: asyncParentLoader}));
 
-         registry.recognize('/first/second', RootHostCmp)
+         registry.recognize('/first/second', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyParentCmp);
-               expect(instruction.child.component.componentType).toBe(DummyCmpB);
-               async.done();
+
+               instruction.child.resolveComponent().then((childType) => {
+                 expect(childType.componentType).toBe(DummyCmpB);
+                 async.done();
+               });
              });
        }));
 
@@ -233,16 +268,16 @@ export function main() {
 
     it('should throw when linkParams are not terminal', () => {
       registry.config(RootHostCmp,
-                      new Route({path: '/first/...', component: DummyParentCmp, as: 'First'}));
-      expect(() => { registry.generate(['First'], RootHostCmp); })
-          .toThrowError('Link "["First"]" does not resolve to a terminal or async instruction.');
+                      new Route({path: '/first/...', component: DummyParentCmp, name: 'First'}));
+      expect(() => { registry.generate(['First'], []); })
+          .toThrowError('Link "["First"]" does not resolve to a terminal instruction.');
     });
 
     it('should match matrix params on child components and query params on the root component',
        inject([AsyncTestCompleter], (async) => {
          registry.config(RootHostCmp, new Route({path: '/first/...', component: DummyParentCmp}));
 
-         registry.recognize('/first/second;filter=odd?comments=all', RootHostCmp)
+         registry.recognize('/first/second;filter=odd?comments=all', [])
              .then((instruction) => {
                expect(instruction.component.componentType).toBe(DummyParentCmp);
                expect(instruction.component.params).toEqual({'comments': 'all'});
@@ -256,7 +291,7 @@ export function main() {
     it('should generate URLs with matrix and query params', () => {
       registry.config(
           RootHostCmp,
-          new Route({path: '/first/:param/...', component: DummyParentParamCmp, as: 'FirstCmp'}));
+          new Route({path: '/first/:param/...', component: DummyParentParamCmp, name: 'FirstCmp'}));
 
       var url = stringifyInstruction(registry.generate(
           [
@@ -268,57 +303,62 @@ export function main() {
               sort: 'asc',
             }
           ],
-          RootHostCmp));
+          []));
       expect(url).toEqual('first/one/second/two;sort=asc?query=cats');
     });
 
   });
 }
 
-function AsyncParentLoader() {
+function stringifyInstruction(instruction): string {
+  return instruction.toRootUrl();
+}
+
+
+function asyncParentLoader() {
   return PromiseWrapper.resolve(DummyParentCmp);
 }
 
-function AsyncChildLoader() {
+function asyncChildLoader() {
   return PromiseWrapper.resolve(DummyCmpB);
 }
 
 class RootHostCmp {}
 
-@RouteConfig([new AsyncRoute({path: '/second', loader: AsyncChildLoader})])
+@RouteConfig([new AsyncRoute({path: '/second', loader: asyncChildLoader})])
 class DummyAsyncCmp {
 }
 
 class DummyCmpA {}
 class DummyCmpB {}
 
-@RouteConfig([
-  new Redirect({path: '/', redirectTo: '/third'}),
-  new Route({path: '/third', component: DummyCmpB, as: 'ThirdCmp'})
-])
-class DummyRedirectCmp {
+@RouteConfig(
+    [new Route({path: '/third', component: DummyCmpB, name: 'ThirdCmp', useAsDefault: true})])
+class DefaultRouteCmp {
+}
+
+@RouteConfig([new Route({path: '/', component: DummyCmpB, name: 'ThirdCmp'})])
+class SingleSlashChildCmp {
 }
 
 
 @RouteConfig([
-  new Redirect({path: '/', redirectTo: '/second'}),
-  new Route({path: '/second/...', component: DummyRedirectCmp, as: 'SecondCmp'})
+  new Route(
+      {path: '/second/...', component: DefaultRouteCmp, name: 'SecondCmp', useAsDefault: true})
 ])
-class DummyMultipleRedirectCmp {
+class MultipleDefaultCmp {
 }
 
-@RouteConfig([
-  new Redirect({path: '/', redirectTo: '/second'}),
-  new Route({path: '/second', component: DummyCmpB, as: 'SecondCmp'})
-])
-class DummyParentRedirectCmp {
+@RouteConfig(
+    [new Route({path: '/second', component: DummyCmpB, name: 'SecondCmp', useAsDefault: true})])
+class ParentWithDefaultRouteCmp {
 }
 
-@RouteConfig([new Route({path: '/second', component: DummyCmpB, as: 'SecondCmp'})])
+@RouteConfig([new Route({path: '/second', component: DummyCmpB, name: 'SecondCmp'})])
 class DummyParentCmp {
 }
 
 
-@RouteConfig([new Route({path: '/second/:param', component: DummyCmpB, as: 'SecondCmp'})])
+@RouteConfig([new Route({path: '/second/:param', component: DummyCmpB, name: 'SecondCmp'})])
 class DummyParentParamCmp {
 }

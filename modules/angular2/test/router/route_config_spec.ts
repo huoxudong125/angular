@@ -9,25 +9,25 @@ import {
   it,
   xdescribe,
   xit,
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
-import {bootstrap} from 'angular2/bootstrap';
+import {bootstrap} from 'angular2/platform/browser';
 import {Component, Directive, View} from 'angular2/src/core/metadata';
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {bind} from 'angular2/core';
-import {DOCUMENT} from 'angular2/src/core/render/render';
-import {Type} from 'angular2/src/core/facade/lang';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {Console} from 'angular2/src/core/console';
+import {provide} from 'angular2/core';
+import {DOCUMENT} from 'angular2/src/platform/dom/dom_tokens';
+import {Type, IS_DART} from 'angular2/src/facade/lang';
 
 import {
-  ROUTER_BINDINGS,
-  ROUTER_PRIMARY_COMPONENT,
+  ROUTER_PROVIDERS,
   Router,
   RouteConfig,
   APP_BASE_HREF,
   ROUTER_DIRECTIVES
 } from 'angular2/router';
 
-import {ExceptionHandler} from 'angular2/src/core/facade/exceptions';
+import {ExceptionHandler} from 'angular2/src/facade/exceptions';
 import {LocationStrategy} from 'angular2/src/router/location_strategy';
 import {MockLocationStrategy} from 'angular2/src/mock/mock_location_strategy';
 
@@ -39,6 +39,10 @@ class _ArrayLogger {
   logGroupEnd(){};
 }
 
+class DummyConsole implements Console {
+  log(message) {}
+}
+
 export function main() {
   describe('RouteConfig with POJO arguments', () => {
     var fakeDoc, el, testBindings;
@@ -47,18 +51,18 @@ export function main() {
       el = DOM.createElement('app-cmp', fakeDoc);
       DOM.appendChild(fakeDoc.body, el);
       var logger = new _ArrayLogger();
-      var exceptionHandler = new ExceptionHandler(logger, true);
+      var exceptionHandler = new ExceptionHandler(logger, !IS_DART);
       testBindings = [
-        ROUTER_BINDINGS,
-        bind(LocationStrategy).toClass(MockLocationStrategy),
-        bind(DOCUMENT).toValue(fakeDoc),
-        bind(ExceptionHandler).toValue(exceptionHandler)
+        ROUTER_PROVIDERS,
+        provide(LocationStrategy, {useClass: MockLocationStrategy}),
+        provide(DOCUMENT, {useValue: fakeDoc}),
+        provide(ExceptionHandler, {useValue: exceptionHandler}),
+        provide(Console, {useClass: DummyConsole})
       ];
     });
 
     it('should bootstrap an app with a hierarchy', inject([AsyncTestCompleter], (async) => {
-         bootstrap(HierarchyAppCmp,
-                   [bind(ROUTER_PRIMARY_COMPONENT).toValue(HierarchyAppCmp), testBindings])
+         bootstrap(HierarchyAppCmp, testBindings)
              .then((applicationRef) => {
                var router = applicationRef.hostComponent.router;
                router.subscribe((_) => {
@@ -72,8 +76,7 @@ export function main() {
 
 
     it('should work in an app with redirects', inject([AsyncTestCompleter], (async) => {
-         bootstrap(RedirectAppCmp,
-                   [bind(ROUTER_PRIMARY_COMPONENT).toValue(RedirectAppCmp), testBindings])
+         bootstrap(RedirectAppCmp, testBindings)
              .then((applicationRef) => {
                var router = applicationRef.hostComponent.router;
                router.subscribe((_) => {
@@ -87,7 +90,36 @@ export function main() {
 
 
     it('should work in an app with async components', inject([AsyncTestCompleter], (async) => {
-         bootstrap(AsyncAppCmp, [bind(ROUTER_PRIMARY_COMPONENT).toValue(AsyncAppCmp), testBindings])
+         bootstrap(AsyncAppCmp, testBindings)
+             .then((applicationRef) => {
+               var router = applicationRef.hostComponent.router;
+               router.subscribe((_) => {
+                 expect(el).toHaveText('root { hello }');
+                 expect(applicationRef.hostComponent.location.path()).toEqual('/hello');
+                 async.done();
+               });
+               router.navigateByUrl('/hello');
+             });
+       }));
+
+
+    it('should work in an app with aux routes', inject([AsyncTestCompleter], (async) => {
+         bootstrap(AuxAppCmp, testBindings)
+             .then((applicationRef) => {
+               var router = applicationRef.hostComponent.router;
+               router.subscribe((_) => {
+                 expect(el).toHaveText('root { hello } aside { hello }');
+                 expect(applicationRef.hostComponent.location.path()).toEqual('/hello(aside)');
+                 async.done();
+               });
+               router.navigateByUrl('/hello(aside)');
+             });
+       }));
+
+
+    it('should work in an app with async components defined with "loader"',
+       inject([AsyncTestCompleter], (async) => {
+         bootstrap(ConciseAsyncAppCmp, testBindings)
              .then((applicationRef) => {
                var router = applicationRef.hostComponent.router;
                router.subscribe((_) => {
@@ -102,9 +134,7 @@ export function main() {
 
     it('should work in an app with a constructor component',
        inject([AsyncTestCompleter], (async) => {
-         bootstrap(
-             ExplicitConstructorAppCmp,
-             [bind(ROUTER_PRIMARY_COMPONENT).toValue(ExplicitConstructorAppCmp), testBindings])
+         bootstrap(ExplicitConstructorAppCmp, testBindings)
              .then((applicationRef) => {
                var router = applicationRef.hostComponent.router;
                router.subscribe((_) => {
@@ -120,8 +150,7 @@ export function main() {
        inject(
            [AsyncTestCompleter],
            (async) => {
-               bootstrap(WrongConfigCmp,
-                         [bind(ROUTER_PRIMARY_COMPONENT).toValue(WrongConfigCmp), testBindings])
+               bootstrap(WrongConfigCmp, testBindings)
                    .catch((e) => {
                      expect(e.originalException)
                          .toContainError(
@@ -134,9 +163,7 @@ export function main() {
        inject(
            [AsyncTestCompleter],
            (async) => {
-               bootstrap(
-                   WrongComponentTypeCmp,
-                   [bind(ROUTER_PRIMARY_COMPONENT).toValue(WrongComponentTypeCmp), testBindings])
+               bootstrap(WrongComponentTypeCmp, testBindings)
                    .catch((e) => {
                      expect(e.originalException)
                          .toContainError(
@@ -149,15 +176,39 @@ export function main() {
        inject(
            [AsyncTestCompleter],
            (async) => {
-               bootstrap(BadAliasCmp,
-                         [bind(ROUTER_PRIMARY_COMPONENT).toValue(BadAliasCmp), testBindings])
+               bootstrap(BadAliasNameCmp, testBindings)
                    .catch((e) => {
                      expect(e.originalException)
                          .toContainError(
-                             `Route '/child' with alias 'child' does not begin with an uppercase letter. Route aliases should be CamelCase like 'Child'.`);
+                             `Route "/child" with name "child" does not begin with an uppercase letter. Route names should be CamelCase like "Child".`);
                      async.done();
                      return null;
                    })}));
+
+    it('should throw if a config has an invalid alias name with "as"',
+       inject(
+           [AsyncTestCompleter],
+           (async) => {
+               bootstrap(BadAliasCmp, testBindings)
+                   .catch((e) => {
+                     expect(e.originalException)
+                         .toContainError(
+                             `Route "/child" with name "child" does not begin with an uppercase letter. Route names should be CamelCase like "Child".`);
+                     async.done();
+                     return null;
+                   })}));
+
+    it('should throw if a config has multiple alias properties "as" and "name"',
+       inject([AsyncTestCompleter],
+              (async) => {
+                  bootstrap(MultipleAliasCmp, testBindings)
+                      .catch((e) => {
+                        expect(e.originalException)
+                            .toContainError(
+                                `Route config should contain exactly one "as" or "name" property.`);
+                        async.done();
+                        return null;
+                      })}));
   });
 }
 
@@ -169,7 +220,10 @@ class HelloCmp {
 
 @Component({selector: 'app-cmp'})
 @View({template: `root { <router-outlet></router-outlet> }`, directives: ROUTER_DIRECTIVES})
-@RouteConfig([{path: '/before', redirectTo: '/after'}, {path: '/after', component: HelloCmp}])
+@RouteConfig([
+  {path: '/before', redirectTo: ['Hello']},
+  {path: '/after', component: HelloCmp, name: 'Hello'}
+])
 class RedirectAppCmp {
   constructor(public router: Router, public location: LocationStrategy) {}
 }
@@ -184,6 +238,22 @@ function HelloLoader(): Promise<any> {
   {path: '/hello', component: {type: 'loader', loader: HelloLoader}},
 ])
 class AsyncAppCmp {
+  constructor(public router: Router, public location: LocationStrategy) {}
+}
+
+@Component({selector: 'app-cmp'})
+@View({template: `root { <router-outlet></router-outlet> }`, directives: ROUTER_DIRECTIVES})
+@RouteConfig([
+  {path: '/hello', loader: HelloLoader},
+])
+class ConciseAsyncAppCmp {
+  constructor(public router: Router, public location: LocationStrategy) {}
+}
+
+@Component({selector: 'app-cmp'})
+@View({template: `root { <router-outlet></router-outlet> } aside { <router-outlet name="aside"></router-outlet> }`, directives: ROUTER_DIRECTIVES})
+@RouteConfig([{path: '/hello', component: HelloCmp}, {aux: 'aside', component: HelloCmp}])
+class AuxAppCmp {
   constructor(public router: Router, public location: LocationStrategy) {}
 }
 
@@ -217,8 +287,20 @@ class WrongConfigCmp {
 
 @Component({selector: 'app-cmp'})
 @View({template: `root { <router-outlet></router-outlet> }`, directives: ROUTER_DIRECTIVES})
+@RouteConfig([{path: '/child', component: HelloCmp, name: 'child'}])
+class BadAliasNameCmp {
+}
+
+@Component({selector: 'app-cmp'})
+@View({template: `root { <router-outlet></router-outlet> }`, directives: ROUTER_DIRECTIVES})
 @RouteConfig([{path: '/child', component: HelloCmp, as: 'child'}])
 class BadAliasCmp {
+}
+
+@Component({selector: 'app-cmp'})
+@View({template: `root { <router-outlet></router-outlet> }`, directives: ROUTER_DIRECTIVES})
+@RouteConfig([{path: '/child', component: HelloCmp, as: 'Child', name: 'Child'}])
+class MultipleAliasCmp {
 }
 
 @Component({selector: 'app-cmp'})

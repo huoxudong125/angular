@@ -1,11 +1,15 @@
-import {isBlank, isPresent, CONST} from 'angular2/src/core/facade/lang';
-import {BaseException} from 'angular2/src/core/facade/exceptions';
-import {ListWrapper} from 'angular2/src/core/facade/collection';
+import {isBlank, isPresent, CONST} from 'angular2/src/facade/lang';
+import {BaseException} from 'angular2/src/facade/exceptions';
+import {ListWrapper} from 'angular2/src/facade/collection';
 import {ChangeDetectorRef} from '../change_detector_ref';
-import {Binding, SkipSelfMetadata, OptionalMetadata, Injectable} from 'angular2/src/core/di';
+import {Provider, SkipSelfMetadata, OptionalMetadata, Injectable} from 'angular2/src/core/di';
 
+/**
+ * A strategy for tracking changes over time to an iterable. Used for {@link NgFor} to
+ * respond to changes in an iterable by effecting equivalent changes in the DOM.
+ */
 export interface IterableDiffer {
-  diff(object: Object): any;
+  diff(object: any): any;
   onDestroy();
 }
 
@@ -13,7 +17,7 @@ export interface IterableDiffer {
  * Provides a factory for {@link IterableDiffer}.
  */
 export interface IterableDifferFactory {
-  supports(objects: Object): boolean;
+  supports(objects: any): boolean;
   create(cdRef: ChangeDetectorRef): IterableDiffer;
 }
 
@@ -36,7 +40,7 @@ export class IterableDiffers {
   }
 
   /**
-   * Takes an array of {@link IterableDifferFactory} and returns a binding used to extend the
+   * Takes an array of {@link IterableDifferFactory} and returns a provider used to extend the
    * inherited {@link IterableDiffers} instance with the provided factories and return a new
    * {@link IterableDiffers} instance.
    *
@@ -44,19 +48,19 @@ export class IterableDiffers {
          * which will only be applied to the injector for this component and its children.
          * This step is all that's required to make a new {@link IterableDiffer} available.
    *
-   * # Example
+   * ### Example
    *
    * ```
    * @Component({
-   *   viewBindings: [
+   *   viewProviders: [
    *     IterableDiffers.extend([new ImmutableListDiffer()])
    *   ]
    * })
    * ```
    */
-  static extend(factories: IterableDifferFactory[]): Binding {
-    return new Binding(IterableDiffers, {
-      toFactory: (parent: IterableDiffers) => {
+  static extend(factories: IterableDifferFactory[]): Provider {
+    return new Provider(IterableDiffers, {
+      useFactory: (parent: IterableDiffers) => {
         if (isBlank(parent)) {
           // Typically would occur when calling IterableDiffers.extend inside of dependencies passed
           // to
@@ -70,8 +74,8 @@ export class IterableDiffers {
     });
   }
 
-  find(iterable: Object): IterableDifferFactory {
-    var factory = ListWrapper.find(this.factories, f => f.supports(iterable));
+  find(iterable: any): IterableDifferFactory {
+    var factory = this.factories.find(f => f.supports(iterable));
     if (isPresent(factory)) {
       return factory;
     } else {

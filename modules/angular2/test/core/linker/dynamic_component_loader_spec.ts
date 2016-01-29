@@ -9,21 +9,26 @@ import {
   expect,
   iit,
   inject,
-  beforeEachBindings,
+  beforeEachProviders,
   it,
   xit,
   TestComponentBuilder,
-  RootTestComponent
-} from 'angular2/test_lib';
+  ComponentFixture
+} from 'angular2/testing_internal';
 
-import {OnDestroy} from 'angular2/lifecycle_hooks';
-import {Injector, NgIf} from 'angular2/core';
-import {inspectElement, By} from 'angular2/src/core/debug';
+import {OnDestroy} from 'angular2/core';
+import {Injector, inspectElement} from 'angular2/core';
+import {NgIf} from 'angular2/common';
+import {By} from 'angular2/platform/common_dom';
 import {Component, View, ViewMetadata} from 'angular2/src/core/metadata';
 import {DynamicComponentLoader} from 'angular2/src/core/linker/dynamic_component_loader';
 import {ElementRef} from 'angular2/src/core/linker/element_ref';
-import {DOCUMENT} from 'angular2/src/core/render/render';
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
+import {DOCUMENT} from 'angular2/src/platform/dom/dom_tokens';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {ComponentFixture_} from "angular2/src/testing/test_component_builder";
+import {BaseException} from 'angular2/src/facade/exceptions';
+import {PromiseWrapper} from 'angular2/src/facade/promise';
+import {stringify} from 'angular2/src/facade/lang';
 
 export function main() {
   describe('DynamicComponentLoader', function() {
@@ -70,7 +75,7 @@ export function main() {
          inject([DynamicComponentLoader, TestComponentBuilder, AsyncTestCompleter],
                 (loader, tcb: TestComponentBuilder, async) => {
                   tcb.overrideView(MyComp, new ViewMetadata({
-                                     template: '<child-cmp *ng-if="ctxBoolProp"></child-cmp>',
+                                     template: '<child-cmp *ngIf="ctxBoolProp"></child-cmp>',
                                      directives: [NgIf, ChildComp]
                                    }))
                       .overrideView(
@@ -122,6 +127,28 @@ export function main() {
                       });
                 }));
 
+      it('should leave the view tree in a consistent state if hydration fails',
+         inject([DynamicComponentLoader, TestComponentBuilder, AsyncTestCompleter],
+                (loader, tcb: TestComponentBuilder, async) => {
+                  tcb.overrideView(MyComp, new ViewMetadata({
+                                     template: '<div><location #loc></location></div>',
+                                     directives: [Location]
+                                   }))
+                      .createAsync(MyComp)
+                      .then((tc: ComponentFixture) => {
+                        tc.debugElement
+
+                            PromiseWrapper.catchError(
+                                loader.loadIntoLocation(DynamicallyLoadedThrows,
+                                                        tc.debugElement.elementRef, 'loc'),
+                                error => {
+                                  expect(error.message).toContain("ThrownInConstructor");
+                                  expect(() => tc.detectChanges()).not.toThrow();
+                                  async.done();
+                                });
+                      });
+                }));
+
       it('should throw if the variable does not exist',
          inject([DynamicComponentLoader, TestComponentBuilder, AsyncTestCompleter],
                 (loader, tcb: TestComponentBuilder, async) => {
@@ -138,6 +165,44 @@ export function main() {
                         async.done();
                       });
                 }));
+
+      it('should allow to pass projectable nodes',
+         inject([DynamicComponentLoader, TestComponentBuilder, AsyncTestCompleter],
+                (loader, tcb: TestComponentBuilder, async) => {
+                  tcb.overrideView(MyComp,
+                                   new ViewMetadata({template: '<div #loc></div>', directives: []}))
+                      .createAsync(MyComp)
+                      .then((tc) => {
+                        loader.loadIntoLocation(DynamicallyLoadedWithNgContent,
+                                                tc.debugElement.elementRef, 'loc', null,
+                                                [[DOM.createTextNode('hello')]])
+                            .then(ref => {
+                              tc.detectChanges();
+                              expect(tc.nativeElement).toHaveText('dynamic(hello)');
+                              async.done();
+                            });
+                      });
+                }));
+
+      it('should throw if not enough projectable nodes are passed in',
+         inject(
+             [DynamicComponentLoader, TestComponentBuilder, AsyncTestCompleter],
+             (loader, tcb: TestComponentBuilder, async) => {
+               tcb.overrideView(MyComp,
+                                new ViewMetadata({template: '<div #loc></div>', directives: []}))
+                   .createAsync(MyComp)
+                   .then((tc) => {
+                     PromiseWrapper.catchError(
+                         loader.loadIntoLocation(DynamicallyLoadedWithNgContent,
+                                                 tc.debugElement.elementRef, 'loc', null, []),
+                         (e) => {
+                           expect(e.message).toContain(
+                               `The component ${stringify(DynamicallyLoadedWithNgContent)} has 1 <ng-content> elements, but only 0 slots were provided`);
+                           async.done();
+                         });
+                   });
+             }));
+
     });
 
     describe("loading next to a location", () => {
@@ -221,17 +286,38 @@ export function main() {
                             });
                       });
                 }));
+
+      it('should allow to pass projectable nodes',
+         inject([DynamicComponentLoader, TestComponentBuilder, AsyncTestCompleter],
+                (loader, tcb: TestComponentBuilder, async) => {
+                  tcb.overrideView(MyComp, new ViewMetadata({template: '', directives: [Location]}))
+                      .createAsync(MyComp)
+                      .then((tc) => {
+                        loader.loadNextToLocation(DynamicallyLoadedWithNgContent,
+                                                  tc.debugElement.elementRef, null,
+                                                  [[DOM.createTextNode('hello')]])
+                            .then(ref => {
+                              tc.detectChanges();
+                              var newlyInsertedElement =
+                                  DOM.nextSibling(tc.debugElement.nativeElement);
+                              expect(newlyInsertedElement).toHaveText('dynamic(hello)');
+                              async.done();
+                            });
+                      });
+                }));
+
     });
 
     describe('loadAsRoot', () => {
       it('should allow to create, update and destroy components',
          inject([AsyncTestCompleter, DynamicComponentLoader, DOCUMENT, Injector],
                 (async, loader, doc, injector) => {
-                  var rootEl = el('<child-cmp></child-cmp>');
+                  var rootEl = createRootElement(doc, 'child-cmp');
                   DOM.appendChild(doc.body, rootEl);
                   loader.loadAsRoot(ChildComp, null, injector)
                       .then((componentRef) => {
-                        var el = new RootTestComponent(componentRef);
+                        var el = new ComponentFixture_(componentRef);
+
                         expect(rootEl.parentNode).toBe(doc.body);
 
                         el.detectChanges();
@@ -252,9 +338,33 @@ export function main() {
                       });
                 }));
 
+      it('should allow to pass projectable nodes',
+         inject([AsyncTestCompleter, DynamicComponentLoader, DOCUMENT, Injector],
+                (async, loader, doc, injector) => {
+                  var rootEl = createRootElement(doc, 'dummy');
+                  DOM.appendChild(doc.body, rootEl);
+                  loader.loadAsRoot(DynamicallyLoadedWithNgContent, null, injector, null,
+                                    [[DOM.createTextNode('hello')]])
+                      .then((_) => {
+                        expect(rootEl).toHaveText('dynamic(hello)');
+
+                        async.done();
+                      });
+                }));
+
     });
 
   });
+}
+
+function createRootElement(doc: any, name: string): any {
+  var nodes = DOM.querySelectorAll(doc, name);
+  for (var i = 0; i < nodes.length; i++) {
+    DOM.remove(nodes[i]);
+  }
+  var rootEl = el(`<${name}></${name}>`);
+  DOM.appendChild(doc.body, rootEl);
+  return rootEl;
 }
 
 @Component({
@@ -269,7 +379,7 @@ class ChildComp {
 
 class DynamicallyCreatedComponentService {}
 
-@Component({selector: 'hello-cmp', viewBindings: [DynamicallyCreatedComponentService]})
+@Component({selector: 'hello-cmp', viewProviders: [DynamicallyCreatedComponentService]})
 @View({template: "{{greeting}}"})
 class DynamicallyCreatedCmp implements OnDestroy {
   greeting: string;
@@ -281,12 +391,18 @@ class DynamicallyCreatedCmp implements OnDestroy {
     this.dynamicallyCreatedComponentService = a;
   }
 
-  onDestroy() { this.destroyed = true; }
+  ngOnDestroy() { this.destroyed = true; }
 }
 
 @Component({selector: 'dummy'})
 @View({template: "DynamicallyLoaded;"})
 class DynamicallyLoaded {
+}
+
+@Component({selector: 'dummy'})
+@View({template: "DynamicallyLoaded;"})
+class DynamicallyLoadedThrows {
+  constructor() { throw new BaseException("ThrownInConstructor"); }
 }
 
 @Component({selector: 'dummy'})
@@ -297,6 +413,14 @@ class DynamicallyLoaded2 {
 @Component({selector: 'dummy', host: {'[id]': 'id'}})
 @View({template: "DynamicallyLoadedWithHostProps;"})
 class DynamicallyLoadedWithHostProps {
+  id: string;
+
+  constructor() { this.id = "default"; }
+}
+
+@Component({selector: 'dummy'})
+@View({template: "dynamic(<ng-content></ng-content>)"})
+class DynamicallyLoadedWithNgContent {
   id: string;
 
   constructor() { this.id = "default"; }

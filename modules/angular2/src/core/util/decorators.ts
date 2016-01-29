@@ -1,4 +1,6 @@
-import {global, Type, isFunction, stringify} from 'angular2/src/core/facade/lang';
+import {ConcreteType, global, Type, isFunction, stringify} from 'angular2/src/facade/lang';
+
+var _nextClassId = 0;
 
 /**
  * Declares the interface to be used with {@link Class}.
@@ -71,7 +73,7 @@ export interface TypeDecorator {
   /**
    * Generate a class from the definition and annotate it with {@link TypeDecorator#annotations}.
    */
-  Class(obj: ClassDefinition): Type;
+  Class(obj: ClassDefinition): ConcreteType;
 }
 
 function extractAnnotation(annotation: any): any {
@@ -167,7 +169,7 @@ function applyParams(fnOrArray: (Function | any[]), key: string): Function {
  * }
  * ```
  *
- * ## Example with parameter annotations
+ * ### Example with parameter annotations
  *
  * ```
  * var MyService = ng.Class({
@@ -187,7 +189,7 @@ function applyParams(fnOrArray: (Function | any[]), key: string): Function {
  * }
  * ```
  *
- * ## Example with inheritance
+ * ### Example with inheritance
  *
  * ```
  * var Shape = ng.Class({
@@ -205,7 +207,7 @@ function applyParams(fnOrArray: (Function | any[]), key: string): Function {
  * });
  * ```
  */
-export function Class(clsDef: ClassDefinition): Type {
+export function Class(clsDef: ClassDefinition): ConcreteType {
   var constructor = applyParams(
       clsDef.hasOwnProperty('constructor') ? clsDef.constructor : undefined, 'constructor');
   var proto = constructor.prototype;
@@ -228,7 +230,11 @@ export function Class(clsDef: ClassDefinition): Type {
     Reflect.defineMetadata('annotations', this.annotations, constructor);
   }
 
-  return <Type>constructor;
+  if (!constructor['name']) {
+    constructor['overriddenName'] = `class${_nextClassId++}`;
+  }
+
+  return <ConcreteType>constructor;
 }
 
 var Reflect = global.Reflect;
@@ -236,8 +242,8 @@ if (!(Reflect && Reflect.getMetadata)) {
   throw 'reflect-metadata shim is required when using class decorators';
 }
 
-export function makeDecorator(annotationCls, chainFn: (fn: Function) => void = null): (...args) =>
-    (cls: any) => any {
+export function makeDecorator(
+    annotationCls, chainFn: (fn: Function) => void = null): (...args: any[]) => (cls: any) => any {
   function DecoratorFactory(objOrType): (cls: any) => any {
     var annotationInstance = new (<any>annotationCls)(objOrType);
     if (this instanceof annotationCls) {

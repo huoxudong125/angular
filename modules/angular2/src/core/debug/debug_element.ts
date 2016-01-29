@@ -1,51 +1,46 @@
-import {Type, isPresent, isBlank} from 'angular2/src/core/facade/lang';
-import {ListWrapper, MapWrapper, Predicate} from 'angular2/src/core/facade/collection';
+import {Type, isPresent, isBlank} from 'angular2/src/facade/lang';
+import {ListWrapper, MapWrapper, Predicate} from 'angular2/src/facade/collection';
+import {unimplemented} from 'angular2/src/facade/exceptions';
 
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-
-import {ElementInjector} from 'angular2/src/core/linker/element_injector';
+import {AppElement} from 'angular2/src/core/linker/element';
 import {AppView} from 'angular2/src/core/linker/view';
-import {internalView} from 'angular2/src/core/linker/view_ref';
-import {ElementRef} from 'angular2/src/core/linker/element_ref';
+import {ElementRef, ElementRef_} from 'angular2/src/core/linker/element_ref';
 
 /**
  * A DebugElement contains information from the Angular compiler about an
  * element and provides access to the corresponding ElementInjector and
  * underlying DOM Element, as well as a way to query for children.
+ *
+ * A DebugElement can be obtained from a {@link ComponentFixture} or from an
+ * {@link ElementRef} via {@link inspectElement}.
  */
-export class DebugElement {
-  _elementInjector: ElementInjector;
+export abstract class DebugElement {
+  /**
+   * Return the instance of the component associated with this element, if any.
+   */
+  get componentInstance(): any { return unimplemented(); };
 
   /**
-   * @internal
+   * Return the native HTML element for this DebugElement.
    */
-  constructor(private _parentView: AppView, private _boundElementIndex: number) {
-    this._elementInjector = this._parentView.elementInjectors[this._boundElementIndex];
-  }
+  get nativeElement(): any { return unimplemented(); };
 
-  get componentInstance(): any {
-    if (!isPresent(this._elementInjector)) {
-      return null;
-    }
-    return this._elementInjector.getComponent();
-  }
+  /**
+   * Return an Angular {@link ElementRef} for this element.
+   */
+  get elementRef(): ElementRef { return unimplemented(); };
 
-  get nativeElement(): any { return this.elementRef.nativeElement; }
-
-  get elementRef(): ElementRef { return this._parentView.elementRefs[this._boundElementIndex]; }
-
-  getDirectiveInstance(directiveIndex: number): any {
-    return this._elementInjector.getDirectiveAtIndex(directiveIndex);
-  }
+  /**
+   * Get the directive active for this element with the given index, if any.
+   */
+  abstract getDirectiveInstance(directiveIndex: number): any;
 
   /**
    * Get child DebugElements from within the Light DOM.
    *
    * @return {DebugElement[]}
    */
-  get children(): DebugElement[] {
-    return this._getChildElements(this._parentView, this._boundElementIndex);
-  }
+  get children(): DebugElement[] { return unimplemented(); };
 
   /**
    * Get the root DebugElement children of a component. Returns an empty
@@ -53,36 +48,29 @@ export class DebugElement {
    *
    * @return {DebugElement[]}
    */
-  get componentViewChildren(): DebugElement[] {
-    var shadowView = this._parentView.getNestedView(this._boundElementIndex);
+  get componentViewChildren(): DebugElement[] { return unimplemented(); };
 
-    if (!isPresent(shadowView)) {
-      // The current element is not a component.
-      return [];
-    }
+  /**
+   * Simulate an event from this element as if the user had caused
+   * this event to fire from the page.
+   */
+  abstract triggerEventHandler(eventName: string, eventObj: Event): void;
 
-    return this._getChildElements(shadowView, null);
-  }
+  /**
+   * Check whether the element has a directive with the given type.
+   */
+  abstract hasDirective(type: Type): boolean;
 
-  triggerEventHandler(eventName: string, eventObj: Event): void {
-    this._parentView.triggerEventHandlers(eventName, eventObj, this._boundElementIndex);
-  }
+  /**
+   * Inject the given type from the element injector.
+   */
+  abstract inject(type: Type): any;
 
-  hasDirective(type: Type): boolean {
-    if (!isPresent(this._elementInjector)) {
-      return false;
-    }
-    return this._elementInjector.hasDirective(type);
-  }
 
-  inject(type: Type): any {
-    if (!isPresent(this._elementInjector)) {
-      return null;
-    }
-    return this._elementInjector.get(type);
-  }
-
-  getLocal(name: string): any { return this._parentView.locals.get(name); }
+  /**
+   * Read a local variable from the element (e.g. one defined with `#variable`).
+   */
+  abstract getLocal(name: string): any;
 
   /**
    * Return the first descendant TestElement matching the given predicate
@@ -108,25 +96,75 @@ export class DebugElement {
    * @return {DebugElement[]}
    */
   queryAll(predicate: Predicate<DebugElement>, scope: Function = Scope.all): DebugElement[] {
-    var elementsInScope = scope(this);
+    var elementsInScope: any[] = scope(this);
 
-    return ListWrapper.filter(elementsInScope, predicate);
+    return elementsInScope.filter(predicate);
+  }
+}
+
+export class DebugElement_ extends DebugElement {
+  constructor(private _appElement: AppElement) { super(); }
+
+  get componentInstance(): any {
+    if (!isPresent(this._appElement)) {
+      return null;
+    }
+    return this._appElement.getComponent();
   }
 
-  _getChildElements(view: AppView, parentBoundElementIndex: number): DebugElement[] {
-    var els = [];
-    var parentElementBinder = null;
-    if (isPresent(parentBoundElementIndex)) {
-      parentElementBinder = view.proto.elementBinders[parentBoundElementIndex - view.elementOffset];
-    }
-    for (var i = 0; i < view.proto.elementBinders.length; ++i) {
-      var binder = view.proto.elementBinders[i];
-      if (binder.parent == parentElementBinder) {
-        els.push(new DebugElement(view, view.elementOffset + i));
+  get nativeElement(): any { return this.elementRef.nativeElement; }
 
-        var views = view.viewContainers[view.elementOffset + i];
+  get elementRef(): ElementRef { return this._appElement.ref; }
+
+  getDirectiveInstance(directiveIndex: number): any {
+    return this._appElement.getDirectiveAtIndex(directiveIndex);
+  }
+
+  get children(): DebugElement[] {
+    return this._getChildElements(this._appElement.parentView, this._appElement);
+  }
+
+  get componentViewChildren(): DebugElement[] {
+    if (!isPresent(this._appElement.componentView)) {
+      // The current element is not a component.
+      return [];
+    }
+
+    return this._getChildElements(this._appElement.componentView, null);
+  }
+
+  triggerEventHandler(eventName: string, eventObj: Event): void {
+    this._appElement.parentView.triggerEventHandlers(eventName, eventObj,
+                                                     this._appElement.proto.index);
+  }
+
+  hasDirective(type: Type): boolean {
+    if (!isPresent(this._appElement)) {
+      return false;
+    }
+    return this._appElement.hasDirective(type);
+  }
+
+  inject(type: Type): any {
+    if (!isPresent(this._appElement)) {
+      return null;
+    }
+    return this._appElement.get(type);
+  }
+
+  getLocal(name: string): any { return this._appElement.parentView.locals.get(name); }
+
+  /** @internal */
+  _getChildElements(view: AppView, parentAppElement: AppElement): DebugElement[] {
+    var els = [];
+    for (var i = 0; i < view.appElements.length; ++i) {
+      var appEl = view.appElements[i];
+      if (appEl.parent == parentAppElement) {
+        els.push(new DebugElement_(appEl));
+
+        var views = appEl.nestedViews;
         if (isPresent(views)) {
-          views.views.forEach(
+          views.forEach(
               (nextView) => { els = els.concat(this._getChildElements(nextView, null)); });
         }
       }
@@ -136,20 +174,34 @@ export class DebugElement {
 }
 
 /**
- * Returns a DebugElement for a ElementRef.
+ * Returns a {@link DebugElement} for an {@link ElementRef}.
  *
  * @param {ElementRef}: elementRef
  * @return {DebugElement}
  */
 export function inspectElement(elementRef: ElementRef): DebugElement {
-  return new DebugElement(internalView(elementRef.parentView), elementRef.boundElementIndex);
+  return new DebugElement_((<ElementRef_>elementRef).internalElement);
 }
 
+/**
+ * Maps an array of {@link DebugElement}s to an array of native DOM elements.
+ */
 export function asNativeElements(arr: DebugElement[]): any[] {
   return arr.map((debugEl) => debugEl.nativeElement);
 }
 
+/**
+ * Set of scope functions used with {@link DebugElement}'s query functionality.
+ */
 export class Scope {
+  /**
+   * Scope queries to both the light dom and view of an element and its
+   * children.
+   *
+   * ## Example
+   *
+   * {@example core/debug/ts/debug_element/debug_element.ts region='scope_all'}
+   */
   static all(debugElement: DebugElement): DebugElement[] {
     var scope = [];
     scope.push(debugElement);
@@ -160,6 +212,14 @@ export class Scope {
 
     return scope;
   }
+
+  /**
+   * Scope queries to the light dom of an element and its children.
+   *
+   * ## Example
+   *
+   * {@example core/debug/ts/debug_element/debug_element.ts region='scope_light'}
+   */
   static light(debugElement: DebugElement): DebugElement[] {
     var scope = [];
     debugElement.children.forEach(child => {
@@ -169,6 +229,13 @@ export class Scope {
     return scope;
   }
 
+  /**
+   * Scope queries to the view of an element of its children.
+   *
+   * ## Example
+   *
+   * {@example core/debug/ts/debug_element/debug_element.ts region='scope_view'}
+   */
   static view(debugElement: DebugElement): DebugElement[] {
     var scope = [];
 
@@ -177,20 +244,5 @@ export class Scope {
       scope = scope.concat(Scope.light(child));
     });
     return scope;
-  }
-}
-
-export class By {
-  static all(): Function { return (debugElement) => true; }
-
-  static css(selector: string): Predicate<DebugElement> {
-    return (debugElement) => {
-      return isPresent(debugElement.nativeElement) ?
-                 DOM.elementMatches(debugElement.nativeElement, selector) :
-                 false;
-    };
-  }
-  static directive(type: Type): Predicate<DebugElement> {
-    return (debugElement) => { return debugElement.hasDirective(type); };
   }
 }

@@ -2,7 +2,7 @@ import {
   AsyncTestCompleter,
   TestComponentBuilder,
   beforeEach,
-  beforeEachBindings,
+  beforeEachProviders,
   ddescribe,
   describe,
   el,
@@ -11,56 +11,46 @@ import {
   inject,
   it,
   xit,
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 import {DebugElement} from 'angular2/src/core/debug/debug_element';
 
-import {Component, View, ViewMetadata, UrlResolver, bind} from 'angular2/core';
+import {Component, View, ViewMetadata, bind, provide} from 'angular2/core';
+import {UrlResolver} from 'angular2/compiler';
 
 import {MdButton, MdAnchor} from 'angular2_material/src/components/button/button';
 
 import {TestUrlResolver} from './test_url_resolver';
-
-import {XHR} from 'angular2/src/core/compiler/xhr';
-import {XHRImpl} from 'angular2/src/core/compiler/xhr_impl';
 
 
 export function main() {
   describe('MdButton', () => {
     let builder: TestComponentBuilder;
 
-    beforeEachBindings(() => [
+    beforeEachProviders(() => [
       // Need a custom URL resolver for ng-material template files in order for them to work
       // with both JS and Dart output.
-      bind(UrlResolver)
-          .toValue(new TestUrlResolver()),
-
-      // Need to use the real XHR implementation (instead of the mock) so we can actually request
-      // the template files, since Angular 2 doesn't have anything like $templateCache. This should
-      // eventually be replaced with a preprocessor that inlines templates.
-      bind(XHR).toClass(XHRImpl)
+      provide(UrlResolver, {useValue: new TestUrlResolver()})
     ]);
 
     beforeEach(inject([TestComponentBuilder], (tcb) => { builder = tcb; }));
 
-    describe('button[md-button]', () => {
+    describe('button[mdButton]', () => {
       it('should handle a click on the button', inject([AsyncTestCompleter], (async) => {
-           builder.createAsync(TestApp).then(rootTestComponent => {
-             let testComponent = rootTestComponent.debugElement.componentInstance;
-             let buttonDebugElement =
-                 getChildDebugElement(rootTestComponent.debugElement, 'button');
+           builder.createAsync(TestApp).then(fixture => {
+             let testComponent = fixture.debugElement.componentInstance;
+             let buttonDebugElement = getChildDebugElement(fixture.debugElement, 'button');
 
              buttonDebugElement.nativeElement.click();
              expect(testComponent.clickCount).toBe(1);
 
              async.done();
            });
-         }), 1000);
+         }), 10000);
 
       it('should disable the button', inject([AsyncTestCompleter], (async) => {
-           builder.createAsync(TestApp).then(rootTestComponent => {
-             let testAppComponent = rootTestComponent.debugElement.componentInstance;
-             let buttonDebugElement =
-                 getChildDebugElement(rootTestComponent.debugElement, 'button');
+           builder.createAsync(TestApp).then(fixture => {
+             let testAppComponent = fixture.debugElement.componentInstance;
+             let buttonDebugElement = getChildDebugElement(fixture.debugElement, 'button');
              let buttonElement = buttonDebugElement.nativeElement;
 
              // The button should initially be enabled.
@@ -68,7 +58,7 @@ export function main() {
 
              // After the disabled binding has been changed.
              testAppComponent.isDisabled = true;
-             rootTestComponent.detectChanges();
+             fixture.detectChanges();
 
              // The button should should now be disabled.
              expect(buttonElement.disabled).toBe(true);
@@ -78,11 +68,11 @@ export function main() {
              expect(testAppComponent.clickCount).toBe(0);
              async.done();
            });
-         }), 1000);
+         }), 10000);
     });
 
-    describe('a[md-button]', () => {
-      const anchorTemplate = `<a md-button href="http://google.com" [disabled]="isDisabled">Go</a>`;
+    describe('a[mdButton]', () => {
+      const anchorTemplate = `<a mdButton href="http://google.com" [disabled]="isDisabled">Go</a>`;
 
       beforeEach(() => {
         builder = builder.overrideView(
@@ -90,9 +80,9 @@ export function main() {
       });
 
       it('should remove disabled anchors from tab order', inject([AsyncTestCompleter], (async) => {
-           builder.createAsync(TestApp).then(rootTestComponent => {
-             let testAppComponent = rootTestComponent.debugElement.componentInstance;
-             let anchorDebugElement = getChildDebugElement(rootTestComponent.debugElement, 'a');
+           builder.createAsync(TestApp).then(fixture => {
+             let testAppComponent = fixture.debugElement.componentInstance;
+             let anchorDebugElement = getChildDebugElement(fixture.debugElement, 'a');
              let anchorElement = anchorDebugElement.nativeElement;
 
              // The anchor should initially be in the tab order.
@@ -100,7 +90,7 @@ export function main() {
 
              // After the disabled binding has been changed.
              testAppComponent.isDisabled = true;
-             rootTestComponent.detectChanges();
+             fixture.detectChanges();
 
              // The anchor should now be out of the tab order.
              expect(anchorElement.tabIndex).toBe(-1);
@@ -113,7 +103,7 @@ export function main() {
                 // No clear way to test this; see https://github.com/angular/angular/issues/3782
                 async.done();
               }));
-         }), 1000);
+         }), 10000);
     });
   });
 }
@@ -128,7 +118,7 @@ function getChildDebugElement(parent: DebugElement, tagName: string): DebugEleme
 @View({
   directives: [MdButton],
   template:
-      `<button md-button type="button" (click)="increment()" [disabled]="isDisabled">Go</button>`
+      `<button mdButton type="button" (click)="increment()" [disabled]="isDisabled">Go</button>`
 })
 class TestApp {
   clickCount: number = 0;

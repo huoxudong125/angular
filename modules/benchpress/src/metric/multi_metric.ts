@@ -1,11 +1,11 @@
-import {bind, Binding, Injector, OpaqueToken} from 'angular2/src/core/di';
-import {StringMapWrapper} from 'angular2/src/core/facade/collection';
-import {Promise, PromiseWrapper} from 'angular2/src/core/facade/async';
+import {bind, provide, Binding, Provider, Injector, OpaqueToken} from 'angular2/src/core/di';
+import {StringMapWrapper} from 'angular2/src/facade/collection';
+import {Promise, PromiseWrapper} from 'angular2/src/facade/async';
 
 import {Metric} from '../metric';
 
 export class MultiMetric extends Metric {
-  static createBindings(childTokens: any[]): Binding[] {
+  static createBindings(childTokens: any[]): Provider[] {
     return [
       bind(_CHILDREN)
           .toFactory((injector: Injector) => childTokens.map(token => injector.get(token)),
@@ -42,7 +42,7 @@ export class MultiMetric extends Metric {
   }
 }
 
-function mergeStringMaps(maps: any[]): Object {
+function mergeStringMaps(maps: { [key: string]: string }[]): Object {
   var result = {};
   maps.forEach(
       map => { StringMapWrapper.forEach(map, (value, prop) => { result[prop] = value; }); });

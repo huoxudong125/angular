@@ -7,12 +7,13 @@ import 'options.dart';
 
 TransformerOptions parseBarbackSettings(BarbackSettings settings) {
   var config = settings.configuration;
-  _warnDeprecated(config);
-  var entryPoints = _readFileList(config, ENTRY_POINT_PARAM);
+  var entryPoints = _readStringList(config, ENTRY_POINT_PARAM);
   var initReflector =
       _readBool(config, INIT_REFLECTOR_PARAM, defaultValue: true);
   var reflectPropertiesAsAttributes =
       _readBool(config, REFLECT_PROPERTIES_AS_ATTRIBUTES, defaultValue: false);
+  var platformDirectives = _readStringList(config, PLATFORM_DIRECTIVES);
+  var platformPipes = _readStringList(config, PLATFORM_PIPES);
   var formatCode = _readBool(config, FORMAT_CODE_PARAM, defaultValue: false);
   String mirrorModeVal =
       config.containsKey(MIRROR_MODE_PARAM) ? config[MIRROR_MODE_PARAM] : '';
@@ -32,8 +33,14 @@ TransformerOptions parseBarbackSettings(BarbackSettings settings) {
       modeName: settings.mode.name,
       mirrorMode: mirrorMode,
       initReflector: initReflector,
+      genChangeDetectionDebugInfo: settings.mode == BarbackMode.DEBUG,
       customAnnotationDescriptors: _readCustomAnnotations(config),
       reflectPropertiesAsAttributes: reflectPropertiesAsAttributes,
+      platformDirectives: platformDirectives,
+      platformPipes: platformPipes,
+      inlineViews: _readBool(config, INLINE_VIEWS_PARAM, defaultValue: false),
+      lazyTransformers:
+          _readBool(config, LAZY_TRANSFORMERS, defaultValue: false),
       formatCode: formatCode);
 }
 
@@ -45,16 +52,16 @@ bool _readBool(Map config, String paramName, {bool defaultValue}) {
 
 /// Cribbed from the polymer project.
 /// {@link https://github.com/dart-lang/polymer-dart}
-List<String> _readFileList(Map config, String paramName) {
+List<String> _readStringList(Map config, String paramName) {
   var value = config[paramName];
   if (value == null) return null;
-  var files = [];
+  var result = [];
   bool error = false;
   if (value is List) {
-    files = value;
+    result = value;
     error = value.any((e) => e is! String);
   } else if (value is String) {
-    files = [value];
+    result = [value];
     error = false;
   } else {
     error = true;
@@ -62,7 +69,7 @@ List<String> _readFileList(Map config, String paramName) {
   if (error) {
     print('Invalid value for "$paramName" in the Angular 2 transformer.');
   }
-  return files;
+  return result;
 }
 
 /// Parse the [CUSTOM_ANNOTATIONS_PARAM] options out of the transformer into
@@ -110,16 +117,3 @@ const CUSTOM_ANNOTATIONS_ERROR = '''
         - name: ...
           import: ...
           superClass: ...''';
-
-void _warnDeprecated(Map config) {
-  if (config.containsKey(GENERATE_CHANGE_DETECTORS_PARAM)) {
-    print('${GENERATE_CHANGE_DETECTORS_PARAM} is no longer necessary for '
-        'Angular 2 apps. Please remove it from your pubspec.');
-  }
-  if (config.containsKey(INLINE_VIEWS_PARAM)) {
-    print('Parameter "${INLINE_VIEWS_PARAM}" no longer has any effect on the '
-        'Angular2 transformer. Inlining of views is only needed for tests that '
-        'manipulate component metadata. For this purpose, use transformer '
-        'angular2/src/transform/inliner_for_test.');
-  }
-}

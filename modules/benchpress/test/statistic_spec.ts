@@ -1,8 +1,17 @@
-import {describe, ddescribe, it, iit, xit, expect, beforeEach, afterEach} from 'angular2/test_lib';
+import {
+  describe,
+  ddescribe,
+  it,
+  iit,
+  xit,
+  expect,
+  beforeEach,
+  afterEach
+} from 'angular2/testing_internal';
 
 import {Statistic} from 'benchpress/src/statistic';
 
-import {NaN} from 'angular2/src/core/facade/math';
+import {NaN} from 'angular2/src/facade/math';
 
 export function main() {
   describe('statistic', () => {

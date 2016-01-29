@@ -5,12 +5,11 @@ import {
   it,
   expect,
   beforeEach,
-  createTestInjector,
-  beforeEachBindings,
+  beforeEachProviders,
   SpyObject,
   proxy
-} from 'angular2/test_lib';
-import {ObservableWrapper, TimerWrapper} from 'angular2/src/core/facade/async';
+} from 'angular2/testing_internal';
+import {ObservableWrapper, TimerWrapper} from 'angular2/src/facade/async';
 import {MessageBus} from 'angular2/src/web_workers/shared/message_bus';
 import {createConnectedMessageBus} from './message_bus_util';
 import {MockNgZone} from 'angular2/src/mock/ng_zone_mock';
@@ -37,7 +36,7 @@ export function main() {
            async.done();
          });
          var toEmitter = bus.to(CHANNEL);
-         ObservableWrapper.callNext(toEmitter, MESSAGE);
+         ObservableWrapper.callEmit(toEmitter, MESSAGE);
        }));
 
     it("should broadcast", inject([AsyncTestCompleter], (async) => {
@@ -61,7 +60,7 @@ export function main() {
          }
 
          var toEmitter = bus.to(CHANNEL);
-         ObservableWrapper.callNext(toEmitter, MESSAGE);
+         ObservableWrapper.callEmit(toEmitter, MESSAGE);
        }));
 
     it("should keep channels independent", inject([AsyncTestCompleter], (async) => {
@@ -91,10 +90,10 @@ export function main() {
          });
 
          var firstToEmitter = bus.to(CHANNEL_ONE);
-         ObservableWrapper.callNext(firstToEmitter, MESSAGE_ONE);
+         ObservableWrapper.callEmit(firstToEmitter, MESSAGE_ONE);
 
          var secondToEmitter = bus.to(CHANNEL_TWO);
-         ObservableWrapper.callNext(secondToEmitter, MESSAGE_TWO);
+         ObservableWrapper.callEmit(secondToEmitter, MESSAGE_TWO);
        }));
   });
 
@@ -121,7 +120,7 @@ export function main() {
 
          var wasCalled = false;
          ObservableWrapper.subscribe(bus.from(CHANNEL), (message) => { wasCalled = true; });
-         ObservableWrapper.callNext(bus.to(CHANNEL), "hi");
+         ObservableWrapper.callEmit(bus.to(CHANNEL), "hi");
 
 
          flushMessages(() => {
@@ -141,12 +140,12 @@ export function main() {
 
          var wasCalled = false;
          ObservableWrapper.subscribe(bus.from(CHANNEL), (message) => { wasCalled = true; });
-         ObservableWrapper.callNext(bus.to(CHANNEL), "hi");
+         ObservableWrapper.callEmit(bus.to(CHANNEL), "hi");
 
          flushMessages(() => {
            expect(wasCalled).toBeTruthy();
            async.done();
          });
-       }), 500);
+       }), 10000);
   });
 }

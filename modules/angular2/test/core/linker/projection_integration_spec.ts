@@ -9,21 +9,23 @@ import {
   expect,
   iit,
   inject,
-  beforeEachBindings,
+  beforeEachProviders,
   it,
   xit,
   containsRegexp,
   stringifyElement,
   TestComponentBuilder,
-  RootTestComponent,
+  ComponentFixture,
   fakeAsync,
   tick
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {AppViewListener} from 'angular2/src/core/linker/view_listener';
 
 import {
   bind,
+  provide,
   forwardRef,
   Component,
   Directive,
@@ -32,12 +34,17 @@ import {
   View,
   ViewContainerRef,
   ViewEncapsulation,
-  ViewMetadata
+  ViewMetadata,
+  Scope
 } from 'angular2/core';
-import {By} from 'angular2/src/core/debug';
+import {
+  By,
+} from 'angular2/platform/common_dom';
 
 export function main() {
   describe('projection', () => {
+    beforeEachProviders(() => [provide(AppViewListener, {useClass: AppViewListener})]);
+
     it('should support simple components',
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
          tcb.overrideView(MainComp, new ViewMetadata({
@@ -96,7 +103,7 @@ export function main() {
          tcb.overrideView(
                 Simple, new ViewMetadata({
                   template:
-                      'SIMPLE(<div><ng-content></ng-content></div><div [tab-index]="0">EL</div>)',
+                      'SIMPLE(<div><ng-content></ng-content></div><div [tabIndex]="0">EL</div>)',
                   directives: []
                 }))
              .overrideView(
@@ -286,10 +293,10 @@ export function main() {
          tcb.overrideView(
                 MainComp,
                 new ViewMetadata(
-                    {template: '<simple string-prop="text"></simple>', directives: [Simple]}))
+                    {template: '<simple stringProp="text"></simple>', directives: [Simple]}))
              .overrideTemplate(Simple, '<ng-content></ng-content><p>P,</p>{{stringProp}}')
              .createAsync(MainComp)
-             .then((main: RootTestComponent) => {
+             .then((main: ComponentFixture) => {
 
                main.detectChanges();
 
@@ -307,10 +314,10 @@ export function main() {
          tcb.overrideView(
                 MainComp,
                 new ViewMetadata(
-                    {template: '<simple string-prop="text"></simple>', directives: [Simple]}))
+                    {template: '<simple stringProp="text"></simple>', directives: [Simple]}))
              .overrideTemplate(Simple, '<style></style><p>P,</p>{{stringProp}}')
              .createAsync(MainComp)
-             .then((main: RootTestComponent) => {
+             .then((main: ComponentFixture) => {
 
                main.detectChanges();
                expect(main.debugElement.nativeElement).toHaveText('P,text');
@@ -435,6 +442,28 @@ export function main() {
                  var childNodes = DOM.childNodes(main.debugElement.nativeElement);
                  expect(childNodes[0]).toHaveText('div {color: red}SIMPLE1(A)');
                  expect(childNodes[1]).toHaveText('div {color: blue}SIMPLE2(B)');
+                 main.destroy();
+                 async.done();
+               });
+         }));
+    }
+
+    if (DOM.supportsDOMEvents()) {
+      it('should support emulated style encapsulation',
+         inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
+           tcb.overrideView(MainComp, new ViewMetadata({
+                              template: '<div></div>',
+                              styles: ['div { color: red}'],
+                              encapsulation: ViewEncapsulation.Emulated
+                            }))
+               .createAsync(MainComp)
+               .then((main) => {
+                 var mainEl = main.debugElement.nativeElement;
+                 var div1 = DOM.firstChild(mainEl);
+                 var div2 = DOM.createElement('div');
+                 DOM.appendChild(mainEl, div2);
+                 expect(DOM.getComputedStyle(div1).color).toEqual('rgb(255, 0, 0)');
+                 expect(DOM.getComputedStyle(div2).color).toEqual('rgb(0, 0, 0)');
                  async.done();
                });
          }));
@@ -459,6 +488,79 @@ export function main() {
                    main.debugElement.componentViewChildren[0].componentViewChildren[1];
                viewportElement.inject(ManualViewportDirective).show();
                expect(main.debugElement.nativeElement).toHaveText('MAIN(FIRST(SECOND(a)))');
+
+               async.done();
+             });
+       }));
+
+    it('should allow to switch the order of nested components via ng-content',
+       inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
+         tcb.overrideView(MainComp, new ViewMetadata({
+                            template: `<cmp-a><cmp-b></cmp-b></cmp-a>`,
+                            directives: [CmpA, CmpB],
+                          }))
+             .createAsync(MainComp)
+             .then((main) => {
+               main.detectChanges();
+               expect(DOM.getInnerHTML(main.debugElement.nativeElement))
+                   .toEqual('<cmp-a><cmp-b><cmp-d><d>cmp-d</d></cmp-d></cmp-b>' +
+                            '<cmp-c><c>cmp-c</c></cmp-c></cmp-a>');
+               async.done();
+             });
+       }));
+
+    it('should create nested components in the right order',
+       inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
+         tcb.overrideView(MainComp, new ViewMetadata({
+                            template: `<cmp-a1></cmp-a1><cmp-a2></cmp-a2>`,
+                            directives: [CmpA1, CmpA2],
+                          }))
+             .createAsync(MainComp)
+             .then((main) => {
+               main.detectChanges();
+               expect(DOM.getInnerHTML(main.debugElement.nativeElement))
+                   .toEqual('<cmp-a1>a1<cmp-b11>b11</cmp-b11><cmp-b12>b12</cmp-b12></cmp-a1>' +
+                            '<cmp-a2>a2<cmp-b21>b21</cmp-b21><cmp-b22>b22</cmp-b22></cmp-a2>');
+               async.done();
+             });
+       }));
+
+    it('should project filled view containers into a view container',
+       inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
+         tcb.overrideView(MainComp, new ViewMetadata({
+                            template: '<conditional-content>' +
+                                          '<div class="left">A</div>' +
+                                          '<template manual class="left">B</template>' +
+                                          '<div class="left">C</div>' +
+                                          '<div>D</div>' +
+                                          '</conditional-content>',
+                            directives: [ConditionalContentComponent, ManualViewportDirective]
+                          }))
+             .createAsync(MainComp)
+             .then((main) => {
+               var conditionalComp =
+                   main.debugElement.query(By.directive(ConditionalContentComponent));
+               var viewViewportDir =
+                   conditionalComp.query(By.directive(ManualViewportDirective), Scope.view)
+                       .inject(ManualViewportDirective);
+
+               var contentViewportDir =
+                   conditionalComp.query(By.directive(ManualViewportDirective), Scope.light)
+                       .inject(ManualViewportDirective);
+
+               expect(main.debugElement.nativeElement).toHaveText('(, D)');
+               expect(main.debugElement.nativeElement).toHaveText('(, D)');
+               // first show content viewport, then the view viewport,
+               // i.e. projection needs to take create of already
+               // created views
+               contentViewportDir.show();
+               viewViewportDir.show();
+               expect(main.debugElement.nativeElement).toHaveText('(ABC, D)');
+
+               // hide view viewport, and test that it also hides
+               // the content viewport's views
+               viewViewportDir.hide();
+               expect(main.debugElement.nativeElement).toHaveText('(, D)');
 
                async.done();
              });
@@ -512,7 +614,7 @@ class Empty {
 
 @Component({selector: 'multiple-content-tags'})
 @View({
-  template: '(<ng-content select=".left"></ng-content>, <ng-content></ng-content>)',
+  template: '(<ng-content SELECT=".left"></ng-content>, <ng-content></ng-content>)',
   directives: []
 })
 class MultipleContentTagsComponent {
@@ -599,4 +701,66 @@ class Tab {
 })
 class Tree {
   depth = 0;
+}
+
+
+@Component({selector: 'cmp-d'})
+@View({template: `<d>{{tagName}}</d>`})
+class CmpD {
+  tagName: string;
+  constructor(elementRef: ElementRef) {
+    this.tagName = DOM.tagName(elementRef.nativeElement).toLowerCase();
+  }
+}
+
+
+@Component({selector: 'cmp-c'})
+@View({template: `<c>{{tagName}}</c>`})
+class CmpC {
+  tagName: string;
+  constructor(elementRef: ElementRef) {
+    this.tagName = DOM.tagName(elementRef.nativeElement).toLowerCase();
+  }
+}
+
+
+@Component({selector: 'cmp-b'})
+@View({template: `<ng-content></ng-content><cmp-d></cmp-d>`, directives: [CmpD]})
+class CmpB {
+}
+
+
+@Component({selector: 'cmp-a'})
+@View({template: `<ng-content></ng-content><cmp-c></cmp-c>`, directives: [CmpC]})
+class CmpA {
+}
+
+@Component({selector: 'cmp-b11'})
+@View({template: `{{'b11'}}`, directives: []})
+class CmpB11 {
+}
+
+@Component({selector: 'cmp-b12'})
+@View({template: `{{'b12'}}`, directives: []})
+class CmpB12 {
+}
+
+@Component({selector: 'cmp-b21'})
+@View({template: `{{'b21'}}`, directives: []})
+class CmpB21 {
+}
+
+@Component({selector: 'cmp-b22'})
+@View({template: `{{'b22'}}`, directives: []})
+class CmpB22 {
+}
+
+@Component({selector: 'cmp-a1'})
+@View({template: `{{'a1'}}<cmp-b11></cmp-b11><cmp-b12></cmp-b12>`, directives: [CmpB11, CmpB12]})
+class CmpA1 {
+}
+
+@Component({selector: 'cmp-a2'})
+@View({template: `{{'a2'}}<cmp-b21></cmp-b21><cmp-b22></cmp-b22>`, directives: [CmpB21, CmpB22]})
+class CmpA2 {
 }

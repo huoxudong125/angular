@@ -1,7 +1,13 @@
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {Injectable} from 'angular2/src/core/di';
-import {EventListener, History, Location} from 'angular2/src/core/facade/browser';
-import {LocationStrategy} from './location_strategy';
+import {Injectable, Inject, Optional} from 'angular2/core';
+import {isBlank} from 'angular2/src/facade/lang';
+import {BaseException} from 'angular2/src/facade/exceptions';
+import {
+  LocationStrategy,
+  APP_BASE_HREF,
+  normalizeQueryParams,
+  joinWithSlash
+} from './location_strategy';
+import {PlatformLocation, UrlChangeListener} from './platform_location';
 
 /**
  * `PathLocationStrategy` is a {@link LocationStrategy} used to configure the
@@ -9,7 +15,10 @@ import {LocationStrategy} from './location_strategy';
  * [path](https://en.wikipedia.org/wiki/Uniform_Resource_Locator#Syntax) of the
  * browser's URL.
  *
- * If you're using `PathLocationStrategy`, you must provide a binding for
+ * `PathLocationStrategy` is the default binding for {@link LocationStrategy}
+ * provided in {@link ROUTER_PROVIDERS}.
+ *
+ * If you're using `PathLocationStrategy`, you must provide a provider for
  * {@link APP_BASE_HREF} to a string representing the URL prefix that should
  * be preserved when generating and recognizing URLs.
  *
@@ -17,22 +26,19 @@ import {LocationStrategy} from './location_strategy';
  * `location.go('/foo')`, the browser's URL will become
  * `example.com/my/app/foo`.
  *
- * ## Example
+ * ### Example
  *
  * ```
- * import {Component, View, bind} from 'angular2/angular2';
+ * import {Component, provide} from 'angular2/core';
  * import {
  *   APP_BASE_HREF
  *   ROUTER_DIRECTIVES,
- *   routerBindings,
+ *   ROUTER_PROVIDERS,
  *   RouteConfig,
- *   Location,
- *   LocationStrategy,
- *   PathLocationStrategy
+ *   Location
  * } from 'angular2/router';
  *
- * @Component({...})
- * @View({directives: [ROUTER_DIRECTIVES]})
+ * @Component({directives: [ROUTER_DIRECTIVES]})
  * @RouteConfig([
  *  {...},
  * ])
@@ -43,36 +49,55 @@ import {LocationStrategy} from './location_strategy';
  * }
  *
  * bootstrap(AppCmp, [
- *   routerBindings(AppCmp),
- *   bind(LocationStrategy).toClass(PathLocationStrategy),
- *   bind(APP_BASE_HREF).toValue('/my/app')
+ *   ROUTER_PROVIDERS, // includes binding to PathLocationStrategy
+ *   provide(APP_BASE_HREF, {useValue: '/my/app'})
  * ]);
  * ```
  */
 @Injectable()
 export class PathLocationStrategy extends LocationStrategy {
-  private _location: Location;
-  private _history: History;
   private _baseHref: string;
 
-  constructor() {
+  constructor(private _platformLocation: PlatformLocation,
+              @Optional() @Inject(APP_BASE_HREF) href?: string) {
     super();
-    this._location = DOM.getLocation();
-    this._history = DOM.getHistory();
-    this._baseHref = DOM.getBaseHref();
+
+    if (isBlank(href)) {
+      href = this._platformLocation.getBaseHrefFromDOM();
+    }
+
+    if (isBlank(href)) {
+      throw new BaseException(
+          `No base href set. Please provide a value for the APP_BASE_HREF token or add a base element to the document.`);
+    }
+
+    this._baseHref = href;
   }
 
-  onPopState(fn: EventListener): void {
-    DOM.getGlobalEventTarget('window').addEventListener('popstate', fn, false);
+  onPopState(fn: UrlChangeListener): void {
+    this._platformLocation.onPopState(fn);
+    this._platformLocation.onHashChange(fn);
   }
 
   getBaseHref(): string { return this._baseHref; }
 
-  path(): string { return this._location.pathname; }
+  prepareExternalUrl(internal: string): string { return joinWithSlash(this._baseHref, internal); }
 
-  pushState(state: any, title: string, url: string) { this._history.pushState(state, title, url); }
+  path(): string {
+    return this._platformLocation.pathname + normalizeQueryParams(this._platformLocation.search);
+  }
 
-  forward(): void { this._history.forward(); }
+  pushState(state: any, title: string, url: string, queryParams: string) {
+    var externalUrl = this.prepareExternalUrl(url + normalizeQueryParams(queryParams));
+    this._platformLocation.pushState(state, title, externalUrl);
+  }
 
-  back(): void { this._history.back(); }
+  replaceState(state: any, title: string, url: string, queryParams: string) {
+    var externalUrl = this.prepareExternalUrl(url + normalizeQueryParams(queryParams));
+    this._platformLocation.replaceState(state, title, externalUrl);
+  }
+
+  forward(): void { this._platformLocation.forward(); }
+
+  back(): void { this._platformLocation.back(); }
 }

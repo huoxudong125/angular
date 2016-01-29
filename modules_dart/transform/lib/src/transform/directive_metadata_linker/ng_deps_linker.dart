@@ -2,7 +2,7 @@ library angular2.transform.directive_metadata_linker.ng_deps_linker;
 
 import 'dart:async';
 
-import 'package:angular2/src/core/services.dart';
+import 'package:angular2/compiler.dart' show UrlResolver;
 import 'package:angular2/src/transform/common/asset_reader.dart';
 import 'package:angular2/src/transform/common/logging.dart';
 import 'package:angular2/src/transform/common/names.dart';
@@ -15,10 +15,10 @@ import 'package:barback/barback.dart';
 /// dependencies' associated `.ng_deps.dart` files.
 ///
 /// For example, if entry_point.ng_deps.dart imports dependency.dart, this
-/// will check if dependency.ng_meta.json exists. If it does, we add an import
-/// to dependency.ng_deps.dart to the entry_point [NgDepsModel] and set
-/// `isNgDeps` to `true` to signify that it is a dependency on which we need to
-/// call `initReflector`.
+/// will check if dependency.ng_meta.json exists. If it does, we add an entry
+/// to the `depImports` of [NgDepsModel] for dependency.ng_deps.dart. We can
+/// use this information later to ensure that each file's dependencies are
+/// initialized when that file is initialized.
 Future<NgDepsModel> linkNgDeps(NgDepsModel ngDepsModel, AssetReader reader,
     AssetId assetId, UrlResolver resolver) async {
   if (ngDepsModel == null) return null;
@@ -33,26 +33,17 @@ Future<NgDepsModel> linkNgDeps(NgDepsModel ngDepsModel, AssetReader reader,
       return ngDepsModel;
     }
 
-    for (var i = ngDepsModel.imports.length - 1; i >= 0; --i) {
-      var import = ngDepsModel.imports[i];
-      if (linkedDepsMap.containsKey(import.uri)) {
+    final seen = new Set<String>();
+    var idx = 0;
+    final allDeps = [ngDepsModel.imports, ngDepsModel.exports].expand((e) => e);
+    for (var dep in allDeps) {
+      if (linkedDepsMap.containsKey(dep.uri) && !seen.contains(dep.uri)) {
+        seen.add(dep.uri);
         var linkedModel = new ImportModel()
-          ..isNgDeps = true
-          ..uri = toDepsExtension(import.uri)
-          ..prefix = 'i$i';
+          ..uri = toDepsExtension(dep.uri)
+          ..prefix = 'i${idx++}';
         // TODO(kegluneq): Preserve combinators?
-        ngDepsModel.imports.insert(i + 1, linkedModel);
-      }
-    }
-    for (var i = 0, iLen = ngDepsModel.exports.length; i < iLen; ++i) {
-      var export = ngDepsModel.exports[i];
-      if (linkedDepsMap.containsKey(export.uri)) {
-        var linkedModel = new ImportModel()
-          ..isNgDeps = true
-          ..uri = toDepsExtension(export.uri)
-          ..prefix = 'i${ngDepsModel.imports.length}';
-        // TODO(kegluneq): Preserve combinators?
-        ngDepsModel.imports.add(linkedModel);
+        ngDepsModel.depImports.add(linkedModel);
       }
     }
     return ngDepsModel;
@@ -65,24 +56,27 @@ bool _isNotDartDirective(dynamic model) => !isDartCoreUri(model.uri);
 /// associated `.ng_deps.json` file, if one exists.
 Future<Map<String, String>> _processNgImports(NgDepsModel model,
     AssetReader reader, AssetId assetId, UrlResolver resolver) async {
-  final importsAndExports = new List.from(model.imports)..addAll(model.exports);
+  final importsAndExports =
+      new List.from(model.imports.where((i) => !i.isDeferred))
+        ..addAll(model.exports);
   final retVal = <String, String>{};
   final assetUri = toAssetUri(assetId);
   return Future
       .wait(
           importsAndExports.where(_isNotDartDirective).map((dynamic directive) {
-    // The uri of the import or export with .dart replaced with .ng_meta.json.
-    // This is the json file containing Angular 2 codegen info, if one exists.
-    var linkedJsonUri =
-        resolver.resolve(assetUri, toMetaExtension(directive.uri));
-    return reader.hasInput(fromUri(linkedJsonUri)).then((hasInput) {
+    // Check whether the import or export generated summary NgMeta information.
+    final summaryJsonUri =
+        resolver.resolve(assetUri, toSummaryExtension(directive.uri));
+    return reader.hasInput(fromUri(summaryJsonUri)).then((hasInput) {
       if (hasInput) {
-        retVal[directive.uri] = linkedJsonUri;
+        retVal[directive.uri] = summaryJsonUri;
       }
     }, onError: (err, stack) {
-      logger.warning('Error while looking for $linkedJsonUri. '
+      log.warning(
+          'Error while looking for $summaryJsonUri. '
           'Message: $err\n'
-          'Stack: $stack');
+          'Stack: $stack',
+          asset: assetId);
     });
   }))
       .then((_) => retVal);

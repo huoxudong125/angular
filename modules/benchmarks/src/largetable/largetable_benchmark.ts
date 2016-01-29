@@ -1,28 +1,19 @@
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {window, document, gc} from 'angular2/src/core/facade/browser';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {window, document, gc} from 'angular2/src/facade/browser';
 import {
   getIntParameter,
   getStringParameter,
   bindAction,
   windowProfile,
   windowProfileEnd
-} from 'angular2/src/test_lib/benchmark_util';
+} from 'angular2/src/testing/benchmark_util';
 import {bootstrap} from 'angular2/bootstrap';
-import {
-  Component,
-  Directive,
-  View,
-  bind,
-  NgFor,
-  NgSwitch,
-  NgSwitchWhen,
-  NgSwitchDefault,
-  LifeCycle
-} from 'angular2/core';
-import {BrowserDomAdapter} from 'angular2/src/core/dom/browser_adapter';
-import {APP_VIEW_POOL_CAPACITY} from 'angular2/src/core/linker/view_pool';
+import {Component, Directive, View, bind, provide} from 'angular2/core';
+import {NgFor, NgSwitch, NgSwitchWhen, NgSwitchDefault} from 'angular2/common';
+import {ApplicationRef} from 'angular2/src/core/application_ref';
+import {BrowserDomAdapter} from 'angular2/src/platform/browser/browser_adapter';
 
-import {ListWrapper} from 'angular2/src/core/facade/collection';
+import {ListWrapper} from 'angular2/src/facade/collection';
 
 import {Inject} from 'angular2/src/core/di/decorators';
 import {reflector} from 'angular2/src/core/reflection/reflection';
@@ -32,13 +23,10 @@ export const LARGETABLE_ROWS = 'LargetableComponent.rows';
 export const LARGETABLE_COLS = 'LargetableComponent.cols';
 
 function _createBindings() {
-  var viewCacheCapacity = getStringParameter('viewcache') == 'true' ? 10000 : 1;
   return [
-    bind(BENCHMARK_TYPE)
-        .toValue(getStringParameter('benchmarkType')),
-    bind(LARGETABLE_ROWS).toValue(getIntParameter('rows')),
-    bind(LARGETABLE_COLS).toValue(getIntParameter('columns')),
-    bind(APP_VIEW_POOL_CAPACITY).toValue(viewCacheCapacity)
+    provide(BENCHMARK_TYPE, {useValue: getStringParameter('benchmarkType')}),
+    provide(LARGETABLE_ROWS, {useValue: getIntParameter('rows')}),
+    provide(LARGETABLE_COLS, {useValue: getIntParameter('columns')})
   ];
 }
 
@@ -65,7 +53,7 @@ export function main() {
   BASELINE_LARGETABLE_TEMPLATE = DOM.createTemplate('<table></table>');
 
   var app;
-  var lifecycle;
+  var appRef;
   var baselineRootLargetableComponent;
 
   function ng2DestroyDom() {
@@ -73,7 +61,7 @@ export function main() {
     // --> this should be already caught in change detection!
     app.data = null;
     app.benchmarkType = 'none';
-    lifecycle.tick();
+    appRef.tick();
   }
 
   function profile(create, destroy, name) {
@@ -116,7 +104,7 @@ export function main() {
     }
     app.data = data;
     app.benchmarkType = getStringParameter('benchmarkType');
-    lifecycle.tick();
+    appRef.tick();
   }
 
   function noop() {}
@@ -126,7 +114,7 @@ export function main() {
         .then((ref) => {
           var injector = ref.injector;
           app = ref.hostComponent;
-          lifecycle = injector.get(LifeCycle);
+          appRef = injector.get(ApplicationRef);
           bindAction('#ng2DestroyDom', ng2DestroyDom);
           bindAction('#ng2CreateDom', ng2CreateDom);
           bindAction('#ng2UpdateDomProfile', profile(ng2CreateDom, noop, 'ng2-update'));
@@ -223,29 +211,29 @@ class CellData {
 @View({
   directives: [NgFor, NgSwitch, NgSwitchWhen, NgSwitchDefault],
   template: `
-      <table [ng-switch]="benchmarkType">
-        <tbody template="ng-switch-when 'interpolation'">
-          <tr template="ng-for #row of data">
-            <td template="ng-for #column of row">
+      <table [ngSwitch]="benchmarkType">
+        <tbody template="ngSwitchWhen 'interpolation'">
+          <tr template="ngFor #row of data">
+            <td template="ngFor #column of row">
               {{column.i}}:{{column.j}}|
             </td>
           </tr>
         </tbody>
-        <tbody template="ng-switch-when 'interpolationAttr'">
-          <tr template="ng-for #row of data">
-            <td template="ng-for #column of row" attr.i="{{column.i}}" attr.j="{{column.j}}">
+        <tbody template="ngSwitchWhen 'interpolationAttr'">
+          <tr template="ngFor #row of data">
+            <td template="ngFor #column of row" attr.i="{{column.i}}" attr.j="{{column.j}}">
               i,j attrs
             </td>
           </tr>
         </tbody>
-        <tbody template="ng-switch-when 'interpolationFn'">
-          <tr template="ng-for #row of data">
-            <td template="ng-for #column of row">
+        <tbody template="ngSwitchWhen 'interpolationFn'">
+          <tr template="ngFor #row of data">
+            <td template="ngFor #column of row">
               {{column.iFn()}}:{{column.jFn()}}|
             </td>
           </tr>
         </tbody>
-        <tbody template="ng-switch-default">
+        <tbody template="ngSwitchDefault">
           <tr>
             <td>
               <em>{{benchmarkType}} not yet implemented</em>
@@ -270,7 +258,7 @@ class LargetableComponent {
 @Component({selector: 'app'})
 @View({
   directives: [LargetableComponent],
-  template: `<largetable [data]='data' [benchmark-type]='benchmarkType'></largetable>`
+  template: `<largetable [data]='data' [benchmarkType]='benchmarkType'></largetable>`
 })
 class AppComponent {
   data;

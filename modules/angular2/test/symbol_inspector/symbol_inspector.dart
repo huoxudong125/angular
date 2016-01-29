@@ -2,7 +2,11 @@ library angular.symbol_inspector.symbol_inspector;
 
 import 'dart:mirrors';
 import './simple_library.dart' as simple_library;
-import 'package:angular2/angular2.dart' as angular2;
+import 'package:angular2/common.dart';
+import 'package:angular2/compiler.dart';
+import 'package:angular2/core.dart';
+import 'package:angular2/instrumentation.dart';
+import 'package:angular2/platform/browser.dart';
 
 const IGNORE = const {
   'runtimeType': true,
@@ -15,11 +19,15 @@ const IGNORE = const {
 
 const LIB_MAP = const {
   'simple_library': 'angular2.test.symbol_inspector.simple_library',
-  'ng': 'angular2'
+  'ngCommon': 'angular2.common',
+  'ngCompiler': 'angular2.compiler',
+  'ngCore': 'angular2.core',
+  'ngInstrumentation': 'angular2.instrumentation',
+  'ngPlatformBrowser': 'angular2.platform.browser'
 };
 
 // Have this list here to trick dart to force import.
-var libs = [simple_library.A, angular2.Component];
+var libs = [simple_library.A, Component, Form, TemplateCompiler, NgIf, wtfCreateScope, Title];
 
 List<String> getSymbolsFromLibrary(String name) {
   var libraryName = LIB_MAP[name];
@@ -52,7 +60,7 @@ class ExportedSymbol {
       names.add('$name()');
     } else if (declaration is ClassMirror) {
       var classMirror = declaration as ClassMirror;
-      if (classMirror.isAbstract) name = '{$name}';
+      if (classMirror.isAbstract) name = '$name';
       names.add(name);
       classMirror.staticMembers.forEach(members('$name#', names));
       classMirror.instanceMembers.forEach(members('$name.', names));
@@ -89,8 +97,8 @@ class LibraryInfo {
   }
 }
 
-Iterable<Symbol> _getUsedSymbols(DeclarationMirror decl, seenDecls, path, onlyType) {
-
+Iterable<Symbol> _getUsedSymbols(
+    DeclarationMirror decl, seenDecls, path, onlyType) {
   if (seenDecls.containsKey(decl.qualifiedName)) return [];
   seenDecls[decl.qualifiedName] = true;
 
@@ -111,12 +119,10 @@ Iterable<Symbol> _getUsedSymbols(DeclarationMirror decl, seenDecls, path, onlyTy
       used.addAll(_getUsedSymbols(p.type, seenDecls, path, onlyType));
     });
     used.addAll(_getUsedSymbols(ftdecl.returnType, seenDecls, path, onlyType));
-  }
-  else if (decl is TypeMirror) {
+  } else if (decl is TypeMirror) {
     var tdecl = decl;
     used.add(tdecl.qualifiedName);
   }
-
 
   if (!onlyType) {
     if (decl is ClassMirror) {
@@ -128,15 +134,13 @@ Iterable<Symbol> _getUsedSymbols(DeclarationMirror decl, seenDecls, path, onlyTy
           print("Got error [$e] when visiting $d\n$s");
         }
       });
-
     }
 
     if (decl is MethodMirror) {
       MethodMirror mdecl = decl;
-      if (mdecl.parameters != null)
-        mdecl.parameters.forEach((p) {
-          used.addAll(_getUsedSymbols(p.type, seenDecls, path, true));
-        });
+      if (mdecl.parameters != null) mdecl.parameters.forEach((p) {
+        used.addAll(_getUsedSymbols(p.type, seenDecls, path, true));
+      });
       used.addAll(_getUsedSymbols(mdecl.returnType, seenDecls, path, true));
     }
 
@@ -208,7 +212,6 @@ LibraryInfo extractSymbols(LibraryMirror lib, [String printPrefix = ""]) {
   });
   return new LibraryInfo(exportedSymbols, used);
 }
-
 
 var _SYMBOL_NAME = new RegExp('"(.*)"');
 unwrapSymbol(sym) => _SYMBOL_NAME.firstMatch(sym.toString()).group(1);

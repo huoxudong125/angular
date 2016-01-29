@@ -1,5 +1,5 @@
-import {RequestMethods} from './enums';
-import {RequestOptions} from './base_request_options';
+import {RequestMethod} from './enums';
+import {RequestArgs} from './interfaces';
 import {Headers} from './headers';
 import {normalizeMethodName} from './http_utils';
 import {
@@ -8,7 +8,7 @@ import {
   isPresent,
   isJsObject,
   StringWrapper
-} from 'angular2/src/core/facade/lang';
+} from 'angular2/src/facade/lang';
 
 // TODO(jeffbcross): properly implement body accessors
 /**
@@ -25,24 +25,24 @@ import {
  * where it may be useful to generate a `Request` with arbitrary headers and search params.
  *
  * ```typescript
- * import {Injectable, Injector} from 'angular2/angular2';
- * import {HTTP_BINDINGS, Http, Request, RequestMethods} from 'angular2/http';
+ * import {Injectable, Injector} from 'angular2/core';
+ * import {HTTP_PROVIDERS, Http, Request, RequestMethod} from 'angular2/http';
  *
  * @Injectable()
  * class AutoAuthenticator {
  *   constructor(public http:Http) {}
  *   request(url:string) {
  *     return this.http.request(new Request({
- *       method: RequestMethods.Get,
+ *       method: RequestMethod.Get,
  *       url: url,
  *       search: 'password=123'
  *     }));
  *   }
  * }
  *
- * var injector = Injector.resolveAndCreate([HTTP_BINDINGS, AutoAuthenticator]);
+ * var injector = Injector.resolveAndCreate([HTTP_PROVIDERS, AutoAuthenticator]);
  * var authenticator = injector.get(AutoAuthenticator);
- * authenticator.request('people.json').toRx().subscribe(res => {
+ * authenticator.request('people.json').subscribe(res => {
  *   //URL should have included '?password=123'
  *   console.log('people', res.json());
  * });
@@ -52,7 +52,7 @@ export class Request {
   /**
    * Http method with which to perform the request.
    */
-  method: RequestMethods;
+  method: RequestMethod;
   /**
    * {@link Headers} instance
    */
@@ -61,7 +61,7 @@ export class Request {
   url: string;
   // TODO: support URLSearchParams | FormData | Blob | ArrayBuffer
   private _body: string;
-  constructor(requestOptions: RequestOptions) {
+  constructor(requestOptions: RequestArgs) {
     // TODO: assert that url is present
     let url = requestOptions.url;
     this.url = requestOptions.url;

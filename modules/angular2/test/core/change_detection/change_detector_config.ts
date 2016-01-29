@@ -1,5 +1,5 @@
-import {ListWrapper, MapWrapper, StringMapWrapper} from 'angular2/src/core/facade/collection';
-import {isBlank, isPresent} from 'angular2/src/core/facade/lang';
+import {ListWrapper, MapWrapper, StringMapWrapper} from 'angular2/src/facade/collection';
+import {isBlank, isPresent} from 'angular2/src/facade/lang';
 import {
   ChangeDetectionStrategy,
   BindingRecord,
@@ -39,8 +39,8 @@ function _createEventRecords(expression: string): BindingRecord[] {
   return [BindingRecord.createForEvent(ast, eventName, 0)];
 }
 
-function _createHostEventRecords(expression: string, directiveRecord: DirectiveRecord):
-    BindingRecord[] {
+function _createHostEventRecords(expression: string,
+                                 directiveRecord: DirectiveRecord): BindingRecord[] {
   var parts = expression.split("=");
   var eventName = parts[0].substring(1, parts[0].length - 1);
   var exp = parts[1].substring(1, parts[1].length - 1);
@@ -53,7 +53,7 @@ function _convertLocalsToVariableBindings(locals: Locals): any[] {
   var variableBindings = [];
   var loc = locals;
   while (isPresent(loc) && isPresent(loc.current)) {
-    MapWrapper.forEach(loc.current, (v, k) => variableBindings.push(k));
+    loc.current.forEach((v, k) => variableBindings.push(k));
     loc = loc.parent;
   }
   return variableBindings;
@@ -65,7 +65,7 @@ export const PROP_NAME = 'propName';
  * In this case, we expect `id` and `expression` to be the same string.
  */
 export function getDefinition(id: string): TestDefinition {
-  var genConfig = new ChangeDetectorGenConfig(true, true, true, true);
+  var genConfig = new ChangeDetectorGenConfig(true, true, true);
   var testDef = null;
   if (StringMapWrapper.contains(_ExpressionWithLocals.availableDefinitions, id)) {
     let val = StringMapWrapper.get(_ExpressionWithLocals.availableDefinitions, id);
@@ -101,8 +101,9 @@ export function getDefinition(id: string): TestDefinition {
 
   } else if (ListWrapper.indexOf(_availableHostEventDefinitions, id) >= 0) {
     var eventRecords = _createHostEventRecords(id, _DirectiveUpdating.basicRecords[0]);
-    let cdDef = new ChangeDetectorDefinition(id, null, [], [], eventRecords,
-                                             [_DirectiveUpdating.basicRecords[0]], genConfig);
+    let cdDef = new ChangeDetectorDefinition(
+        id, null, [], [], eventRecords,
+        [_DirectiveUpdating.basicRecords[0], _DirectiveUpdating.basicRecords[1]], genConfig);
     testDef = new TestDefinition(id, cdDef, null);
 
   } else if (id == "onPushObserveBinding") {
@@ -121,7 +122,7 @@ export function getDefinition(id: string): TestDefinition {
                                              [_DirectiveUpdating.recordNoCallbacks], genConfig);
     testDef = new TestDefinition(id, cdDef, null);
   } else if (id == "updateElementProduction") {
-    var genConfig = new ChangeDetectorGenConfig(false, false, false, true);
+    var genConfig = new ChangeDetectorGenConfig(false, false, true);
     var records = _createBindingRecords("name");
     let cdDef = new ChangeDetectorDefinition(id, null, [], records, [], [], genConfig);
     testDef = new TestDefinition(id, cdDef, null);
@@ -167,7 +168,7 @@ class _ExpressionWithLocals {
     var variableBindings = _convertLocalsToVariableBindings(this.locals);
     var bindingRecords = _createBindingRecords(this._expression);
     var directiveRecords = [];
-    var genConfig = new ChangeDetectorGenConfig(true, true, true, true);
+    var genConfig = new ChangeDetectorGenConfig(true, true, true);
     return new ChangeDetectorDefinition('(empty id)', strategy, variableBindings, bindingRecords,
                                         [], directiveRecords, genConfig);
   }
@@ -231,7 +232,7 @@ class _ExpressionWithMode {
                              _createHostEventRecords("(host-event)='false'", dirRecordWithOnPush))
     }
 
-    var genConfig = new ChangeDetectorGenConfig(true, true, true, true);
+    var genConfig = new ChangeDetectorGenConfig(true, true, true);
 
     return new ChangeDetectorDefinition('(empty id)', this._strategy, variableBindings,
                                         bindingRecords, eventRecords, directiveRecords, genConfig);
@@ -260,7 +261,7 @@ class _DirectiveUpdating {
   createChangeDetectorDefinition(): ChangeDetectorDefinition {
     var strategy = null;
     var variableBindings = [];
-    var genConfig = new ChangeDetectorGenConfig(true, true, true, true);
+    var genConfig = new ChangeDetectorGenConfig(true, true, true);
 
     return new ChangeDetectorDefinition('(empty id)', strategy, variableBindings,
                                         this._bindingRecords, [], this._directiveRecords,
@@ -286,7 +287,9 @@ class _DirectiveUpdating {
       callAfterContentInit: true,
       callAfterContentChecked: true,
       callAfterViewInit: true,
-      callAfterViewChecked: true
+      callAfterViewChecked: true,
+      callOnDestroy: true,
+      outputs: [['eventEmitter', 'host-event']]
     }),
     new DirectiveRecord({
       directiveIndex: new DirectiveIndex(0, 1),
@@ -296,7 +299,9 @@ class _DirectiveUpdating {
       callAfterContentInit: true,
       callAfterContentChecked: true,
       callAfterViewInit: true,
-      callAfterViewChecked: true
+      callAfterViewChecked: true,
+      callOnDestroy: true,
+      outputs: [['eventEmitter', 'host-event']]
     })
   ];
 
@@ -315,48 +320,46 @@ class _DirectiveUpdating {
    * Map from test id to _DirectiveUpdating.
    * Definitions in this map define definitions which allow testing directive updating.
    */
-  static availableDefinitions:
-      {[key: string]: _DirectiveUpdating} = {
-        'directNoDispatcher': new _DirectiveUpdating(
-            [_DirectiveUpdating.updateA('42', _DirectiveUpdating.basicRecords[0])],
+  static availableDefinitions: {[key: string]: _DirectiveUpdating} = {
+    'directNoDispatcher': new _DirectiveUpdating(
+        [_DirectiveUpdating.updateA('42', _DirectiveUpdating.basicRecords[0])],
+        [_DirectiveUpdating.basicRecords[0]]),
+    'groupChanges':
+        new _DirectiveUpdating(
+            [
+              _DirectiveUpdating.updateA('1', _DirectiveUpdating.basicRecords[0]),
+              _DirectiveUpdating.updateB('2', _DirectiveUpdating.basicRecords[0]),
+              BindingRecord.createDirectiveOnChanges(_DirectiveUpdating.basicRecords[0]),
+              _DirectiveUpdating.updateA('3', _DirectiveUpdating.basicRecords[1]),
+              BindingRecord.createDirectiveOnChanges(_DirectiveUpdating.basicRecords[1])
+            ],
+            [_DirectiveUpdating.basicRecords[0], _DirectiveUpdating.basicRecords[1]]),
+    'directiveDoCheck': new _DirectiveUpdating(
+        [BindingRecord.createDirectiveDoCheck(_DirectiveUpdating.basicRecords[0])],
+        [_DirectiveUpdating.basicRecords[0]]),
+    'directiveOnInit': new _DirectiveUpdating(
+        [BindingRecord.createDirectiveOnInit(_DirectiveUpdating.basicRecords[0])],
+        [_DirectiveUpdating.basicRecords[0]]),
+    'emptyWithDirectiveRecords': new _DirectiveUpdating(
+        [], [_DirectiveUpdating.basicRecords[0], _DirectiveUpdating.basicRecords[1]]),
+    'noCallbacks': new _DirectiveUpdating(
+        [_DirectiveUpdating.updateA('1', _DirectiveUpdating.recordNoCallbacks)],
+        [_DirectiveUpdating.recordNoCallbacks]),
+    'readingDirectives':
+        new _DirectiveUpdating(
+            [
+              BindingRecord.createForHostProperty(
+                  new DirectiveIndex(0, 0), _getParser().parseBinding('a', 'location'), PROP_NAME)
+            ],
             [_DirectiveUpdating.basicRecords[0]]),
-        'groupChanges':
-            new _DirectiveUpdating(
-                [
-                  _DirectiveUpdating.updateA('1', _DirectiveUpdating.basicRecords[0]),
-                  _DirectiveUpdating.updateB('2', _DirectiveUpdating.basicRecords[0]),
-                  BindingRecord.createDirectiveOnChanges(_DirectiveUpdating.basicRecords[0]),
-                  _DirectiveUpdating.updateA('3', _DirectiveUpdating.basicRecords[1]),
-                  BindingRecord.createDirectiveOnChanges(_DirectiveUpdating.basicRecords[1])
-                ],
-                [_DirectiveUpdating.basicRecords[0], _DirectiveUpdating.basicRecords[1]]),
-        'directiveDoCheck': new _DirectiveUpdating(
-            [BindingRecord.createDirectiveDoCheck(_DirectiveUpdating.basicRecords[0])],
-            [_DirectiveUpdating.basicRecords[0]]),
-        'directiveOnInit': new _DirectiveUpdating(
-            [BindingRecord.createDirectiveOnInit(_DirectiveUpdating.basicRecords[0])],
-            [_DirectiveUpdating.basicRecords[0]]),
-        'emptyWithDirectiveRecords': new _DirectiveUpdating(
-            [], [_DirectiveUpdating.basicRecords[0], _DirectiveUpdating.basicRecords[1]]),
-        'noCallbacks': new _DirectiveUpdating(
-            [_DirectiveUpdating.updateA('1', _DirectiveUpdating.recordNoCallbacks)],
-            [_DirectiveUpdating.recordNoCallbacks]),
-        'readingDirectives':
-            new _DirectiveUpdating(
-                [
-                  BindingRecord.createForHostProperty(new DirectiveIndex(0, 0),
-                                                      _getParser().parseBinding('a', 'location'),
-                                                      PROP_NAME)
-                ],
-                [_DirectiveUpdating.basicRecords[0]]),
-        'interpolation':
-            new _DirectiveUpdating(
-                [
-                  BindingRecord.createForElementProperty(
-                      _getParser().parseInterpolation('B{{a}}A', 'location'), 0, PROP_NAME)
-                ],
-                [])
-      };
+    'interpolation':
+        new _DirectiveUpdating(
+            [
+              BindingRecord.createForElementProperty(
+                  _getParser().parseInterpolation('B{{a}}A', 'location'), 0, PROP_NAME)
+            ],
+            [])
+  };
 }
 
 /**
@@ -408,6 +411,7 @@ var _availableDefinitions = [
   'name | pipe',
   '(name | pipe).length',
   "name | pipe:'one':address.city",
+  "name | pipe:'a':'b' | pipe:0:1:2",
   'value',
   'a',
   'address.city',
@@ -417,7 +421,15 @@ var _availableDefinitions = [
   'a()(99)',
   'a.sayHi("Jim")',
   'passThrough([12])',
-  'invalidFn(1)'
+  'invalidFn(1)',
+  'age',
+  'true ? city : zipcode',
+  'false ? city : zipcode',
+  'getTrue() && getTrue()',
+  'getFalse() && getTrue()',
+  'getFalse() || getFalse()',
+  'getTrue() || getFalse()',
+  'name == "Victor" ? (true ? address.city : address.zipcode) : address.zipcode'
 ];
 
 var _availableEventDefinitions = [
@@ -426,8 +438,10 @@ var _availableEventDefinitions = [
   '(event)="a[0]=\$event"',
   // '(event)="\$event=1"',
   '(event)="a=a+1; a=a+1;"',
+  '(event)="true; false"',
   '(event)="false"',
-  '(event)="true"'
+  '(event)="true"',
+  '(event)="true ? a = a + 1 : a = a + 1"',
 ];
 
 var _availableHostEventDefinitions = ['(host-event)="onEvent(\$event)"'];

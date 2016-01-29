@@ -1,13 +1,20 @@
-import {ListWrapper} from 'angular2/src/core/facade/collection';
-import {ResolvedBinding} from 'angular2/src/core/di';
-import {isPresent, isBlank} from 'angular2/src/core/facade/lang';
+import {ListWrapper} from 'angular2/src/facade/collection';
+import {unimplemented} from 'angular2/src/facade/exceptions';
+import {ResolvedProvider} from 'angular2/src/core/di';
+import {isPresent, isBlank} from 'angular2/src/facade/lang';
 
-import * as avmModule from './view_manager';
-import * as viewModule from './view';
+import {AppElement} from './element';
 
-import {ElementRef} from './element_ref';
-import {TemplateRef} from './template_ref';
-import {ViewRef, HostViewRef, ProtoViewRef, internalView} from './view_ref';
+import {ElementRef, ElementRef_} from './element_ref';
+import {TemplateRef, TemplateRef_} from './template_ref';
+import {
+  EmbeddedViewRef,
+  HostViewRef,
+  HostViewFactoryRef,
+  HostViewFactoryRef_,
+  ViewRef,
+  ViewRef_
+} from './view_ref';
 
 /**
  * Represents a container where one or more Views can be attached.
@@ -29,26 +36,12 @@ import {ViewRef, HostViewRef, ProtoViewRef, internalView} from './view_ref';
  *
  * <!-- TODO(i): we are also considering ElementRef#viewContainer api -->
  */
-export class ViewContainerRef {
+export abstract class ViewContainerRef {
   /**
-   * @internal
+   * Anchor element that specifies the location of this container in the containing View.
+   * <!-- TODO: rename to anchorElement -->
    */
-  constructor(
-      /**
-       * @internal
-       */
-      public viewManager: avmModule.AppViewManager,
-
-      /**
-       * Anchor element that specifies the location of this container in the containing View.
-       * <!-- TODO: rename to anchorElement -->
-       */
-      public element: ElementRef) {}
-
-  private _getViews(): Array<viewModule.AppView> {
-    var vc = internalView(this.element.parentView).viewContainers[this.element.boundElementIndex];
-    return isPresent(vc) ? vc.views : [];
-  }
+  get element(): ElementRef { return unimplemented(); }
 
   /**
    * Destroys all Views in this container.
@@ -62,12 +55,12 @@ export class ViewContainerRef {
   /**
    * Returns the {@link ViewRef} for the View located in this container at the specified index.
    */
-  get(index: number): ViewRef { return this._getViews()[index].ref; }
+  abstract get(index: number): ViewRef;
 
   /**
    * Returns the number of Views currently attached to this container.
    */
-  get length(): number { return this._getViews().length; }
+  get length(): number { return unimplemented(); };
 
   /**
    * Instantiates an Embedded View based on the {@link TemplateRef `templateRef`} and inserts it
@@ -77,12 +70,7 @@ export class ViewContainerRef {
    *
    * Returns the {@link ViewRef} for the newly created View.
    */
-  // TODO(rado): profile and decide whether bounds checks should be added
-  // to the methods below.
-  createEmbeddedView(templateRef: TemplateRef, index: number = -1): ViewRef {
-    if (index == -1) index = this.length;
-    return this.viewManager.createEmbeddedViewInContainer(this.element, index, templateRef);
-  }
+  abstract createEmbeddedView(templateRef: TemplateRef, index?: number): EmbeddedViewRef;
 
   /**
    * Instantiates a single {@link Component} and inserts its Host View into this container at the
@@ -93,17 +81,14 @@ export class ViewContainerRef {
    *
    * If `index` is not specified, the new View will be inserted as the last View in the container.
    *
-   * You can optionally specify `dynamicallyCreatedBindings`, which configure the {@link Injector}
+   * You can optionally specify `dynamicallyCreatedProviders`, which configure the {@link Injector}
    * that will be created for the Host View.
    *
    * Returns the {@link HostViewRef} of the Host View created for the newly instantiated Component.
    */
-  createHostView(protoViewRef: ProtoViewRef = null, index: number = -1,
-                 dynamicallyCreatedBindings: ResolvedBinding[] = null): HostViewRef {
-    if (index == -1) index = this.length;
-    return this.viewManager.createHostViewInContainer(this.element, index, protoViewRef,
-                                                      dynamicallyCreatedBindings);
-  }
+  abstract createHostView(hostViewFactoryRef: HostViewFactoryRef, index?: number,
+                          dynamicallyCreatedProviders?: ResolvedProvider[],
+                          projectableNodes?: any[][]): HostViewRef;
 
   /**
    * Inserts a View identified by a {@link ViewRef} into the container at the specified `index`.
@@ -112,40 +97,80 @@ export class ViewContainerRef {
    *
    * Returns the inserted {@link ViewRef}.
    */
-  // TODO(i): refactor insert+remove into move
-  insert(viewRef: ViewRef, index: number = -1): ViewRef {
-    if (index == -1) index = this.length;
-    return this.viewManager.attachViewInContainer(this.element, index, viewRef);
-  }
+  abstract insert(viewRef: EmbeddedViewRef, index?: number): EmbeddedViewRef;
 
   /**
    * Returns the index of the View, specified via {@link ViewRef}, within the current container or
    * `-1` if this container doesn't contain the View.
    */
-  indexOf(viewRef: ViewRef): number {
-    return ListWrapper.indexOf(this._getViews(), internalView(viewRef));
-  }
+  abstract indexOf(viewRef: ViewRef): number;
 
   /**
    * Destroys a View attached to this container at the specified `index`.
    *
    * If `index` is not specified, the last View in the container will be removed.
    */
-  // TODO(i): rename to destroy
-  remove(index: number = -1): void {
-    if (index == -1) index = this.length - 1;
-    this.viewManager.destroyViewInContainer(this.element, index);
-    // view is intentionally not returned to the client.
-  }
+  abstract remove(index?: number): void;
 
   /**
    * Use along with {@link #insert} to move a View within the current container.
    *
    * If the `index` param is omitted, the last {@link ViewRef} is detached.
    */
+  abstract detach(index?: number): EmbeddedViewRef;
+}
+
+export class ViewContainerRef_ extends ViewContainerRef {
+  constructor(private _element: AppElement) { super(); }
+
+  get(index: number): EmbeddedViewRef { return this._element.nestedViews[index].ref; }
+  get length(): number {
+    var views = this._element.nestedViews;
+    return isPresent(views) ? views.length : 0;
+  }
+
+  get element(): ElementRef_ { return this._element.ref; }
+
+  // TODO(rado): profile and decide whether bounds checks should be added
+  // to the methods below.
+  createEmbeddedView(templateRef: TemplateRef, index: number = -1): EmbeddedViewRef {
+    if (index == -1) index = this.length;
+    var vm = this._element.parentView.viewManager;
+    return vm.createEmbeddedViewInContainer(this._element.ref, index, templateRef);
+  }
+
+  createHostView(hostViewFactoryRef: HostViewFactoryRef, index: number = -1,
+                 dynamicallyCreatedProviders: ResolvedProvider[] = null,
+                 projectableNodes: any[][] = null): HostViewRef {
+    if (index == -1) index = this.length;
+    var vm = this._element.parentView.viewManager;
+    return vm.createHostViewInContainer(this._element.ref, index, hostViewFactoryRef,
+                                        dynamicallyCreatedProviders, projectableNodes);
+  }
+
   // TODO(i): refactor insert+remove into move
-  detach(index: number = -1): ViewRef {
+  insert(viewRef: ViewRef, index: number = -1): EmbeddedViewRef {
+    if (index == -1) index = this.length;
+    var vm = this._element.parentView.viewManager;
+    return vm.attachViewInContainer(this._element.ref, index, viewRef);
+  }
+
+  indexOf(viewRef: ViewRef): number {
+    return ListWrapper.indexOf(this._element.nestedViews, (<ViewRef_>viewRef).internalView);
+  }
+
+  // TODO(i): rename to destroy
+  remove(index: number = -1): void {
     if (index == -1) index = this.length - 1;
-    return this.viewManager.detachViewInContainer(this.element, index);
+    var vm = this._element.parentView.viewManager;
+    return vm.destroyViewInContainer(this._element.ref, index);
+    // view is intentionally not returned to the client.
+  }
+
+  // TODO(i): refactor insert+remove into move
+  detach(index: number = -1): EmbeddedViewRef {
+    if (index == -1) index = this.length - 1;
+    var vm = this._element.parentView.viewManager;
+    return vm.detachViewInContainer(this._element.ref, index);
   }
 }

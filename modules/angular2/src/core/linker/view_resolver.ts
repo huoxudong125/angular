@@ -2,15 +2,19 @@ import {Injectable} from 'angular2/src/core/di';
 import {ViewMetadata} from '../metadata/view';
 import {ComponentMetadata} from '../metadata/directives';
 
-import {Type, stringify, isBlank, isPresent} from 'angular2/src/core/facade/lang';
-import {BaseException} from 'angular2/src/core/facade/exceptions';
-import {Map, MapWrapper, ListWrapper} from 'angular2/src/core/facade/collection';
+import {Type, stringify, isBlank, isPresent} from 'angular2/src/facade/lang';
+import {BaseException} from 'angular2/src/facade/exceptions';
+import {Map} from 'angular2/src/facade/collection';
 
 import {reflector} from 'angular2/src/core/reflection/reflection';
 
 
+/**
+ * Resolves types to {@link ViewMetadata}.
+ */
 @Injectable()
 export class ViewResolver {
+  /** @internal */
   _cache = new Map<Type, ViewMetadata>();
 
   resolve(component: Type): ViewMetadata {
@@ -24,6 +28,7 @@ export class ViewResolver {
     return view;
   }
 
+  /** @internal */
   _resolve(component: Type): ViewMetadata {
     var compMeta: ComponentMetadata;
     var viewMeta: ViewMetadata;
@@ -87,6 +92,7 @@ export class ViewResolver {
     return null;
   }
 
+  /** @internal */
   _throwMixingViewAndComponent(propertyName: string, component: Type): void {
     throw new BaseException(
         `Component '${stringify(component)}' cannot have both '${propertyName}' and '@View' set at the same time"`);

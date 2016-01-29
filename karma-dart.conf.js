@@ -1,4 +1,4 @@
-var sauceConf = require('./sauce.conf');
+var browserProvidersConf = require('./browser-providers.conf.js');
 
 var packageSources = {
   // Dependencies installed with `pub install`.
@@ -16,8 +16,8 @@ var packageSources = {
   'utf': 'packages/utf',
 
   // Local dependencies, transpiled from the source.
-  'angular2/test/': 'dist/dart/angular2/test/',
   'angular2': 'dist/dart/angular2/lib',
+  'angular2/test/': 'dist/dart/angular2/test/',
   'http': 'dist/dart/http/lib',
   'angular2_material': 'dist/dart/angular2_material/lib',
   'benchpress': 'dist/dart/benchpress/lib',
@@ -67,7 +67,7 @@ module.exports = function(config) {
     // Map packages to the correct urls where Karma serves them.
     proxies: proxyPaths,
 
-    customLaunchers: sauceConf.customLaunchers,
+    customLaunchers: browserProvidersConf.customLaunchers,
     browsers: ['DartiumWithWebPlatform'],
 
     port: 9877,

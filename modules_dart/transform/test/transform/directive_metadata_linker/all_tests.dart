@@ -3,13 +3,15 @@ library angular2.test.transform.directive_metadata_linker.all_tests;
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:angular2/src/transform/common/asset_reader.dart';
-import 'package:angular2/src/transform/common/logging.dart' as log;
-import 'package:angular2/src/transform/common/model/import_export_model.pb.dart';
-import 'package:angular2/src/transform/directive_metadata_linker/ng_meta_linker.dart';
 import 'package:barback/barback.dart';
 import 'package:dart_style/dart_style.dart';
 import 'package:guinness/guinness.dart';
+
+import 'package:angular2/src/transform/common/asset_reader.dart';
+import 'package:angular2/src/transform/common/names.dart';
+import 'package:angular2/src/transform/common/model/import_export_model.pb.dart';
+import 'package:angular2/src/transform/common/zone.dart' as zone;
+import 'package:angular2/src/transform/directive_metadata_linker/ng_meta_linker.dart';
 
 import '../common/ng_meta_helper.dart';
 import '../common/read_file.dart';
@@ -37,36 +39,21 @@ void allTests() {
     reader = new TestAssetReader();
 
     // Establish some test NgMeta objects with one Component each.
-    var fooName = 'FooComponent';
-    var fooComponentMeta = createComponentMetadataForTest(
-        name: fooName,
-        moduleUrl: '$moduleBase/export_cycle_files/foo.dart',
-        selector: '[foo]',
-        template: 'Foo');
+    var fooComponentMeta = createFoo(moduleBase);
     fooNgMeta = new NgMeta(ngDeps: new NgDepsModel());
-    fooNgMeta.types[fooName] = fooComponentMeta;
+    fooNgMeta.types[fooComponentMeta.type.name] = fooComponentMeta;
 
-    var barName = 'BarComponent';
-    var barComponentMeta = createComponentMetadataForTest(
-        name: barName,
-        moduleUrl: '$moduleBase/export_cycle_files/bar.dart',
-        selector: '[bar]',
-        template: 'Bar');
+    var barComponentMeta = createBar(moduleBase);
     barNgMeta = new NgMeta(ngDeps: new NgDepsModel());
-    barNgMeta.types[barName] = barComponentMeta;
+    barNgMeta.types[barComponentMeta.type.name] = barComponentMeta;
 
-    var bazName = 'BazComponent';
-    var bazComponentMeta = createComponentMetadataForTest(
-        name: bazName,
-        moduleUrl: '$moduleBase/export_cycle_files/baz.dart',
-        selector: '[baz]',
-        template: 'Baz');
+    var bazComponentMeta = createBaz(moduleBase);
     bazNgMeta = new NgMeta(ngDeps: new NgDepsModel());
-    barNgMeta.types[bazName] = bazComponentMeta;
+    barNgMeta.types[bazComponentMeta.type.name] = bazComponentMeta;
 
-    fooAssetId = new AssetId('a', 'lib/foo.ng_meta.json');
-    barAssetId = new AssetId('a', 'lib/bar.ng_meta.json');
-    bazAssetId = new AssetId('a', 'lib/baz.ng_meta.json');
+    fooAssetId = new AssetId('a', toSummaryExtension('lib/foo.dart'));
+    barAssetId = new AssetId('a', toSummaryExtension('lib/bar.dart'));
+    bazAssetId = new AssetId('a', toSummaryExtension('lib/baz.dart'));
     updateReader();
   });
 
@@ -79,8 +66,8 @@ void allTests() {
       expect(extracted.types).toContain('FooComponent');
       expect(extracted.types).toContain('BarComponent');
 
-      expect(extracted.types['FooComponent'].selector).toEqual('[foo]');
-      expect(extracted.types['BarComponent'].selector).toEqual('[bar]');
+      expect(extracted.types['FooComponent'].selector).toEqual('foo');
+      expect(extracted.types['BarComponent'].selector).toEqual('bar');
     });
 
     it('should include `DirectiveMetadata` recursively from exported files.',
@@ -94,9 +81,9 @@ void allTests() {
       expect(extracted.types).toContain('BarComponent');
       expect(extracted.types).toContain('BazComponent');
 
-      expect(extracted.types['FooComponent'].selector).toEqual('[foo]');
-      expect(extracted.types['BarComponent'].selector).toEqual('[bar]');
-      expect(extracted.types['BazComponent'].selector).toEqual('[baz]');
+      expect(extracted.types['FooComponent'].selector).toEqual('foo');
+      expect(extracted.types['BarComponent'].selector).toEqual('bar');
+      expect(extracted.types['BazComponent'].selector).toEqual('baz');
     });
 
     it('should handle `DirectiveMetadata` export cycles gracefully.', () async {
@@ -117,7 +104,7 @@ void allTests() {
       fooNgMeta.ngDeps.exports
           .add(new ExportModel()..uri = 'package:bar/bar.dart');
       updateReader();
-      reader.addAsset(new AssetId('bar', 'lib/bar.ng_meta.json'),
+      reader.addAsset(new AssetId('bar', toSummaryExtension('lib/bar.dart')),
           JSON.encode(barNgMeta.toJson()));
 
       var extracted = await _testLink(reader, fooAssetId);
@@ -125,8 +112,8 @@ void allTests() {
       expect(extracted.types).toContain('FooComponent');
       expect(extracted.types).toContain('BarComponent');
 
-      expect(extracted.types['FooComponent'].selector).toEqual('[foo]');
-      expect(extracted.types['BarComponent'].selector).toEqual('[bar]');
+      expect(extracted.types['FooComponent'].selector).toEqual('foo');
+      expect(extracted.types['BarComponent'].selector).toEqual('bar');
     });
   });
 
@@ -142,10 +129,9 @@ void allTests() {
 
       var linked = (await _testLink(reader, fooAssetId)).ngDeps;
       expect(linked).toBeNotNull();
-      var linkedImport =
-          linked.imports.firstWhere((i) => i.uri.endsWith('bar.ng_deps.dart'));
+      var linkedImport = linked.depImports
+          .firstWhere((i) => i.uri.endsWith('bar.ng_deps.dart'));
       expect(linkedImport).toBeNotNull();
-      expect(linkedImport.isNgDeps).toBeTrue();
       expect(linkedImport.prefix.startsWith('i')).toBeTrue();
     });
 
@@ -158,16 +144,33 @@ void allTests() {
 
       var linked = (await _testLink(reader, fooAssetId)).ngDeps;
       expect(linked).toBeNotNull();
-      var linkedImport =
-          linked.imports.firstWhere((i) => i.uri.endsWith('bar.ng_deps.dart'));
+      var linkedImport = linked.depImports
+          .firstWhere((i) => i.uri.endsWith('bar.ng_deps.dart'));
       expect(linkedImport).toBeNotNull();
-      expect(linkedImport.isNgDeps).toBeTrue();
       expect(linkedImport.prefix.startsWith('i')).toBeTrue();
+    });
+
+    it('should not chain `deferred` libraries.', () async {
+      fooNgMeta.ngDeps
+        ..libraryUri = 'test.foo'
+        ..imports.add(new ImportModel()
+          ..uri = 'bar.dart'
+          ..isDeferred = true
+          ..prefix = 'dep');
+      barNgMeta.ngDeps.libraryUri = 'test.bar';
+      updateReader();
+
+      var linked = (await _testLink(reader, fooAssetId)).ngDeps;
+      expect(linked).toBeNotNull();
+      var linkedImport = linked.depImports.firstWhere(
+          (i) => i.uri.endsWith('bar.ng_deps.dart'),
+          orElse: () => null);
+      expect(linkedImport).toBeNull();
     });
   });
 }
 
 Future<NgMeta> _testLink(AssetReader reader, AssetId assetId) {
-  return log.setZoned(
-      new RecordingLogger(), () => linkDirectiveMetadata(reader, assetId));
+  return zone.exec(() => linkDirectiveMetadata(reader, assetId),
+      log: new RecordingLogger());
 }

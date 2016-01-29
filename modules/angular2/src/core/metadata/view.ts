@@ -1,4 +1,4 @@
-import {CONST, Type} from 'angular2/src/core/facade/lang';
+import {CONST, Type} from 'angular2/src/facade/lang';
 
 /**
  * Defines template and style encapsulation options available for Component's {@link View}.
@@ -44,13 +44,11 @@ export var VIEW_ENCAPSULATION_VALUES =
  *
  * For details on the `@Component` annotation, see {@link ComponentMetadata}.
  *
- * ## Example
+ * ### Example
  *
  * ```
  * @Component({
- *   selector: 'greet'
- * })
- * @View({
+ *   selector: 'greet',
  *   template: 'Hello {{name}}!',
  *   directives: [GreetUser, Bold]
  * })
@@ -98,17 +96,15 @@ export class ViewMetadata {
    *
    * Directives must be listed explicitly to provide proper component encapsulation.
    *
-   * ## Example
+   * ### Example
    *
    * ```javascript
    * @Component({
-   *     selector: 'my-component'
-   *   })
-   * @View({
+   *   selector: 'my-component',
    *   directives: [NgFor]
    *   template: '
    *   <ul>
-   *     <li *ng-for="#item of items">{{item}}</li>
+   *     <li *ngFor="#item of items">{{item}}</li>
    *   </ul>'
    * })
    * class MyComponent {

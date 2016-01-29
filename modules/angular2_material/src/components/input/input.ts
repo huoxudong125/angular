@@ -1,6 +1,6 @@
-import {Directive, Attribute, Host, SkipSelf, AfterContentChecked} from 'angular2/angular2';
+import {Directive, Attribute, Host, SkipSelf, AfterContentChecked} from 'angular2/core';
 
-import {ObservableWrapper, EventEmitter} from 'angular2/src/core/facade/async';
+import {ObservableWrapper, EventEmitter} from 'angular2/src/facade/async';
 
 // TODO(jelbourn): validation (will depend on Forms API).
 // TODO(jelbourn): textarea resizing
@@ -30,7 +30,7 @@ export class MdInputContainer implements AfterContentChecked {
     this.inputHasFocus = false;
   }
 
-  afterContentChecked() {
+  ngAfterContentChecked() {
     // Enforce that this directive actually contains a text input.
     if (this._input == null) {
       throw 'No <input> or <textarea> found inside of <md-input-container>';
@@ -71,8 +71,8 @@ export class MdInput {
 
   // Events emitted by this directive. We use these special 'md-' events to communicate
   // to the parent MdInputContainer.
-  mdChange: EventEmitter;
-  mdFocusChange: EventEmitter;
+  mdChange: EventEmitter<any>;
+  mdFocusChange: EventEmitter<any>;
 
   constructor(@Attribute('value') value: string, @SkipSelf() @Host() container: MdInputContainer,
               @Attribute('id') id: string) {
@@ -85,10 +85,10 @@ export class MdInput {
 
   updateValue(event) {
     this.value = event.target.value;
-    ObservableWrapper.callNext(this.mdChange, this.value);
+    ObservableWrapper.callEmit(this.mdChange, this.value);
   }
 
   setHasFocus(hasFocus: boolean) {
-    ObservableWrapper.callNext(this.mdFocusChange, hasFocus);
+    ObservableWrapper.callEmit(this.mdFocusChange, hasFocus);
   }
 }

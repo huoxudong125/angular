@@ -1,4 +1,4 @@
-import {ddescribe, describe, it, iit, expect, beforeEach} from 'angular2/test_lib';
+import {ddescribe, describe, it, iit, expect, beforeEach} from 'angular2/testing_internal';
 import {DirectiveResolver} from 'angular2/src/core/linker/directive_resolver';
 import {
   DirectiveMetadata,
@@ -39,6 +39,12 @@ class SomeDirectiveWithOutputs {
   c;
 }
 
+
+@Directive({selector: 'someDirective', outputs: ['a']})
+class SomeDirectiveWithDuplicateOutputs {
+  @Output() a;
+}
+
 @Directive({selector: 'someDirective', properties: ['a']})
 class SomeDirectiveWithProperties {
 }
@@ -46,8 +52,6 @@ class SomeDirectiveWithProperties {
 @Directive({selector: 'someDirective', events: ['a']})
 class SomeDirectiveWithEvents {
 }
-
-
 
 @Directive({selector: 'someDirective'})
 class SomeDirectiveWithSetterProps {
@@ -143,11 +147,6 @@ export function main() {
         expect(directiveMetadata.inputs).toEqual(['a: renamed']);
       });
 
-      it('should use properties as inputs', () => {
-        var directiveMetadata = resolver.resolve(SomeDirectiveWithProperties);
-        expect(directiveMetadata.inputs).toEqual(['a']);
-      });
-
     });
 
     describe('outputs', () => {
@@ -161,9 +160,10 @@ export function main() {
         expect(directiveMetadata.outputs).toEqual(['a: renamed']);
       });
 
-      it('should use events as outputs', () => {
-        var directiveMetadata = resolver.resolve(SomeDirectiveWithEvents);
-        expect(directiveMetadata.outputs).toEqual(['a']);
+      it('should throw if duplicate outputs', () => {
+        expect(() => { resolver.resolve(SomeDirectiveWithDuplicateOutputs); })
+            .toThrowError(
+                `Output event 'a' defined multiple times in 'SomeDirectiveWithDuplicateOutputs'`);
       });
     });
 

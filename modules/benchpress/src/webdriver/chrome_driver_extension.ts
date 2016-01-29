@@ -1,5 +1,5 @@
-import {bind, Binding} from 'angular2/src/core/di';
-import {ListWrapper, StringMapWrapper} from 'angular2/src/core/facade/collection';
+import {bind, provide, Provider} from 'angular2/src/core/di';
+import {ListWrapper, StringMapWrapper} from 'angular2/src/facade/collection';
 import {
   Json,
   isPresent,
@@ -7,12 +7,12 @@ import {
   RegExpWrapper,
   StringWrapper,
   NumberWrapper
-} from 'angular2/src/core/facade/lang';
-import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
+} from 'angular2/src/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/facade/exceptions';
 
 import {WebDriverExtension, PerfLogFeatures} from '../web_driver_extension';
 import {WebDriverAdapter} from '../web_driver_adapter';
-import {Promise} from 'angular2/src/core/facade/async';
+import {Promise} from 'angular2/src/facade/async';
 import {Options} from '../common_options';
 
 /**
@@ -24,7 +24,7 @@ import {Options} from '../common_options';
  */
 export class ChromeDriverExtension extends WebDriverExtension {
   // TODO(tbosch): use static values when our transpiler supports them
-  static get BINDINGS(): Binding[] { return _BINDINGS; }
+  static get BINDINGS(): Provider[] { return _PROVIDERS; }
 
   private _majorChromeVersion: number;
 
@@ -41,7 +41,7 @@ export class ChromeDriverExtension extends WebDriverExtension {
     if (isBlank(v)) {
       return -1;
     }
-    v = StringWrapper.split(v, /\./g)[0];
+    v = v.split('.')[0];
     if (isBlank(v)) {
       return -1;
     }
@@ -103,7 +103,7 @@ export class ChromeDriverExtension extends WebDriverExtension {
         //   2nd choice: BenchmarkInstrumentation::DisplayRenderingStats - available on systems with
         //               new surfaces framework (not broadly enabled yet)
         //   3rd choice: BenchmarkInstrumentation::ImplThreadRenderingStats - fallback event that is
-        //               allways available if something is rendered
+        //               always available if something is rendered
         var frameCount = event['args']['data']['frame_count'];
         if (frameCount > 1) {
           throw new BaseException('multi-frame render stats not supported');
@@ -193,25 +193,31 @@ export class ChromeDriverExtension extends WebDriverExtension {
                this._isEvent(categories, name, ['devtools.timeline'], 'Layout') ||
                this._isEvent(categories, name, ['devtools.timeline'], 'Paint')) {
       return normalizeEvent(event, {'name': 'render'});
+    } else if (this._isEvent(categories, name, ['devtools.timeline'], 'ResourceReceivedData')) {
+      let normArgs = {'encodedDataLength': args['data']['encodedDataLength']};
+      return normalizeEvent(event, {'name': 'receivedData', 'args': normArgs});
+    } else if (this._isEvent(categories, name, ['devtools.timeline'], 'ResourceSendRequest')) {
+      let data = args['data'];
+      let normArgs = {'url': data['url'], 'method': data['requestMethod']};
+      return normalizeEvent(event, {'name': 'sendRequest', 'args': normArgs});
+    } else if (this._isEvent(categories, name, ['blink.user_timing'], 'navigationStart')) {
+      return normalizeEvent(event, {'name': name});
     }
     return null;  // nothing useful in this event
   }
 
-  private _parseCategories(categories: string): string[] {
-    return StringWrapper.split(categories, /,/g);
-  }
+  private _parseCategories(categories: string): string[] { return categories.split(','); }
 
   private _isEvent(eventCategories: string[], eventName: string, expectedCategories: string[],
                    expectedName: string = null): boolean {
-    var hasCategories = ListWrapper.reduce(expectedCategories, (value, cat) => {
-      return value && ListWrapper.contains(eventCategories, cat);
-    }, true);
+    var hasCategories = expectedCategories.reduce(
+        (value, cat) => { return value && ListWrapper.contains(eventCategories, cat); }, true);
     return isBlank(expectedName) ? hasCategories :
                                    hasCategories && StringWrapper.equals(eventName, expectedName);
   }
 
   perfLogFeatures(): PerfLogFeatures {
-    return new PerfLogFeatures({render: true, gc: true, frameCapture: true});
+    return new PerfLogFeatures({render: true, gc: true, frameCapture: true, userTiming: true});
   }
 
   supports(capabilities: {[key: string]: any}): boolean {
@@ -220,8 +226,8 @@ export class ChromeDriverExtension extends WebDriverExtension {
   }
 }
 
-function normalizeEvent(chromeEvent: {[key: string]: any}, data: {[key: string]: any}):
-    {[key: string]: any} {
+function normalizeEvent(chromeEvent: {[key: string]: any},
+                        data: {[key: string]: any}): {[key: string]: any} {
   var ph = chromeEvent['ph'];
   if (StringWrapper.equals(ph, 'S')) {
     ph = 'b';
@@ -241,7 +247,7 @@ function normalizeEvent(chromeEvent: {[key: string]: any}, data: {[key: string]:
   return result;
 }
 
-var _BINDINGS = [
+var _PROVIDERS = [
   bind(ChromeDriverExtension)
       .toFactory((driver, userAgent) => new ChromeDriverExtension(driver, userAgent),
                  [WebDriverAdapter, Options.USER_AGENT])

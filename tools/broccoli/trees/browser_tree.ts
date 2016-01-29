@@ -11,6 +11,7 @@ import destCopy from '../broccoli-dest-copy';
 import flatten from '../broccoli-flatten';
 import mergeTrees from '../broccoli-merge-trees';
 import replace from '../broccoli-replace';
+import checkImports from '../broccoli-check-imports';
 
 
 const kServedPaths = [
@@ -36,58 +37,110 @@ const kServedPaths = [
   'benchmarks_external/src/static_tree',
 
   // Relative (to /modules) paths to example directories
-  'examples/src/animate',
-  'examples/src/benchpress',
-  'examples/src/model_driven_forms',
-  'examples/src/template_driven_forms',
-  'examples/src/person_management',
-  'examples/src/order_management',
-  'examples/src/gestures',
-  'examples/src/hello_world',
-  'examples/src/http',
-  'examples/src/jsonp',
-  'examples/src/key_events',
-  'examples/src/routing',
-  'examples/src/sourcemap',
-  'examples/src/todo',
-  'examples/src/zippy_component',
-  'examples/src/async',
-  'examples/src/material/button',
-  'examples/src/material/checkbox',
-  'examples/src/material/dialog',
-  'examples/src/material/grid_list',
-  'examples/src/material/input',
-  'examples/src/material/progress-linear',
-  'examples/src/material/radio',
-  'examples/src/material/switcher',
-  'examples/src/web_workers/kitchen_sink',
-  'examples/src/web_workers/todo',
-  'examples/src/web_workers/images',
-  'examples/src/web_workers/message_broker'
+  'playground/src/animate',
+  'playground/src/benchpress',
+  'playground/src/model_driven_forms',
+  'playground/src/template_driven_forms',
+  'playground/src/person_management',
+  'playground/src/order_management',
+  'playground/src/gestures',
+  'playground/src/hash_routing',
+  'playground/src/hello_world',
+  'playground/src/http',
+  'playground/src/jsonp',
+  'playground/src/key_events',
+  'playground/src/relative_assets',
+  'playground/src/routing',
+  'playground/src/sourcemap',
+  'playground/src/svg',
+  'playground/src/todo',
+  'playground/src/upgrade',
+  'playground/src/zippy_component',
+  'playground/src/async',
+  'playground/src/material/button',
+  'playground/src/material/checkbox',
+  'playground/src/material/dialog',
+  'playground/src/material/grid_list',
+  'playground/src/material/input',
+  'playground/src/material/progress-linear',
+  'playground/src/material/radio',
+  'playground/src/material/switcher',
+  'playground/src/web_workers/kitchen_sink',
+  'playground/src/web_workers/todo',
+  'playground/src/web_workers/images',
+  'playground/src/web_workers/message_broker',
+  'playground/src/web_workers/router'
 ];
 
 
 module.exports = function makeBrowserTree(options, destinationPath) {
-  var modulesTree = new Funnel('modules', {
-    include: ['**/**'],
-    exclude: [
-      '**/*.cjs',
-      'benchmarks/e2e_test/**',
-      'angular1_router/**',
-      // Exclude ES6 polyfill typings when tsc target=ES6
-      'angular2/typings/es6-*/**',
-    ],
-    destDir: '/'
-  });
+  const modules = options.projects;
+  const noTypeChecks = options.noTypeChecks;
+  const generateEs6 = options.generateEs6;
+  const sourceMaps = options.sourceMaps;
+  const useBundles = options.useBundles;
 
-  var clientModules = new Funnel(
-      'node_modules', {include: ['@reactivex/**/**', 'parse5/**/**', 'css/**/**'], destDir: '/'});
+  if (modules.angular2) {
+    var angular2Tree = new Funnel('modules/angular2', {
+      include: ['**/**'],
+      exclude: [
+        // Exclude ES6 polyfill typings when tsc target=ES6
+        'typings/es6-*/**',
+      ],
+      destDir: '/angular2/'
+    });
+  }
 
-  var es5ModulesTree = new Funnel('modules', {
-    include: ['**/**'],
-    exclude: ['**/*.cjs', 'angular1_router/**', 'benchmarks/e2e_test/**'],
-    destDir: '/'
-  });
+  if (modules.angular2_material) {
+    var angular2MaterialTree =
+        new Funnel('modules/angular2_material',
+                   {include: ['**/**'], exclude: ['e2e_test/**'], destDir: '/angular2_material/'});
+  }
+
+  if (modules.benchmarks) {
+    var benchmarksTree =
+        new Funnel('modules/benchmarks',
+                   {include: ['**/**'], exclude: ['e2e_test/**'], destDir: '/benchmarks/'});
+  }
+
+  if (modules.benchmarks_external) {
+    var benchmarksExternalTree = new Funnel(
+        'modules/benchmarks_external',
+        {include: ['**/**'], exclude: ['e2e_test/**'], destDir: '/benchmarks_external/'});
+  }
+
+  if (modules.payload_tests) {
+    var payloadTestsTree =
+        new Funnel('modules/payload_tests',
+                   {include: ['**/ts/**'], exclude: ['e2e_test/**'], destDir: '/payload_tests/'});
+  }
+
+  if (modules.playground) {
+    var playgroundTree =
+        new Funnel('modules/playground',
+                   {include: ['**/**'], exclude: ['e2e_test/**'], destDir: '/playground/'});
+  }
+
+  if (modules.benchpress) {
+    var benchpressTree =
+        new Funnel('modules/benchpress',
+                   {include: ['**/**'], exclude: ['e2e_test/**'], destDir: '/benchpress/'});
+  }
+
+  var modulesTree = mergeTrees([
+    angular2Tree,
+    angular2MaterialTree,
+    benchmarksTree,
+    benchmarksExternalTree,
+    payloadTestsTree,
+    playgroundTree,
+    benchpressTree
+  ]);
+
+  var es6PolyfillTypings =
+      new Funnel('modules', {include: ['angular2/typings/es6-*/**'], destDir: '/'});
+
+  var es5ModulesTree = mergeTrees([modulesTree, es6PolyfillTypings]);
 
   var scriptPathPatternReplacement = {
     match: '@@PATH',
@@ -105,44 +158,33 @@ module.exports = function makeBrowserTree(options, destinationPath) {
     }
   };
 
+  var useBundlesPatternReplacement = {
+    match: '@@USE_BUNDLES',
+    replacement: function(replacement, relativePath) { return useBundles; }
+  };
+
+  // Check that imports do not break barrel boundaries
+  modulesTree = checkImports(modulesTree);
+
   modulesTree = replace(modulesTree, {
-    files: ["examples*/**/*.js"],
+    files: ["playground*/**/*.js"],
     patterns: [{match: /\$SCRIPTS\$/, replacement: jsReplace('SCRIPTS')}]
   });
 
-  // Use TypeScript to transpile the *.ts files to ES6
-  var es6Tree = compileWithTypescript(modulesTree, {
-    allowNonTsExtensions: false,
-    declaration: false,
-    emitDecoratorMetadata: true,
-    mapRoot: '',  // force sourcemaps to use relative path
-    noEmitOnError: false,
-    rootDir: '.',
-    sourceMap: true,
-    sourceRoot: '.',
-    target: 'ES6'
-  });
-
   // Use TypeScript to transpile the *.ts files to ES5
-  var typescriptOptions = {
-    allowNonTsExtensions: false,
+  var es5Tree = compileWithTypescript(es5ModulesTree, {
     declaration: false,
     emitDecoratorMetadata: true,
     experimentalDecorators: true,
-    mapRoot: '',  // force sourcemaps to use relative path
-    module: 'CommonJS',
-    moduleResolution: 1 /* classic */,
-    noEmitOnError: true,
-    rootDir: '.',
-    sourceMap: true,
-    sourceRoot: '.',
-    target: 'ES5'
-  };
-  var es5Tree = compileWithTypescript(es5ModulesTree, typescriptOptions);
-
-  // Now we add a few more files to the es6 tree that the es5 tree should not see
-  var extras = new Funnel('tools/build', {files: ['es5build.js'], destDir: 'angular2'});
-  es6Tree = mergeTrees([es6Tree, extras]);
+    module: 'commonjs',
+    moduleResolution: 'classic',
+    noEmitOnError: !noTypeChecks,
+    rootDir: './',
+    rootFilePaths: ['angular2/manual_typings/globals.d.ts'],
+    inlineSourceMap: sourceMaps,
+    inlineSources: sourceMaps,
+    target: 'es5'
+  });
 
   var vendorScriptsTree = flatten(new Funnel('.', {
     files: [
@@ -174,64 +216,111 @@ module.exports = function makeBrowserTree(options, destinationPath) {
     return funnels;
   }
 
-  var htmlTree = new Funnel(modulesTree,
-                            {include: ['*/src/**/*.html', '**/examples/**/*.html'], destDir: '/'});
-  htmlTree = replace(htmlTree, {
-    files: ['examples*/**/*.html'],
-    patterns: [
-      {match: /\$SCRIPTS\$/, replacement: htmlReplace('SCRIPTS')},
-      scriptPathPatternReplacement,
-      scriptFilePatternReplacement
-    ]
+
+  if (modules.angular2_material || modules.benchmarks || modules.benchmarks_external ||
+      modules.playground) {
+    var assetsTree = new Funnel(
+        modulesTree, {include: ['**/*'], exclude: ['**/*.{html,ts,dart}'], destDir: '/'});
+  }
+
+  var htmlTree = new Funnel(modulesTree, {
+    include: ['*/src/**/*.html', '**/playground/**/*.html', '**/payload_tests/**/ts/**/*.html'],
+    destDir: '/'
   });
 
+  if (modules.playground) {
+    htmlTree = replace(htmlTree, {
+      files: ['playground*/**/*.html'],
+      patterns: [
+        {match: /\$SCRIPTS\$/, replacement: htmlReplace('SCRIPTS')},
+        scriptPathPatternReplacement,
+        scriptFilePatternReplacement,
+        useBundlesPatternReplacement
+      ]
+    });
+  }
 
-  htmlTree = replace(htmlTree, {
-    files: ['benchmarks/**'],
-    patterns: [
-      {match: /\$SCRIPTS\$/, replacement: htmlReplace('SCRIPTS_benchmarks')},
-      scriptPathPatternReplacement,
-      scriptFilePatternReplacement
-    ]
-  });
+  if (modules.benchmarks) {
+    htmlTree = replace(htmlTree, {
+      files: ['benchmarks/**'],
+      patterns: [
+        {match: /\$SCRIPTS\$/, replacement: htmlReplace('SCRIPTS_benchmarks')},
+        scriptPathPatternReplacement,
+        scriptFilePatternReplacement,
+        useBundlesPatternReplacement
+      ]
+    });
+  }
 
-  htmlTree = replace(htmlTree, {
-    files: ['benchmarks_external/**'],
-    patterns: [
-      {match: /\$SCRIPTS\$/, replacement: htmlReplace('SCRIPTS_benchmarks_external')},
-      scriptPathPatternReplacement,
-      scriptFilePatternReplacement
-    ]
-  });
+  if (modules.benchmarks_external) {
+    htmlTree = replace(htmlTree, {
+      files: ['benchmarks_external/**'],
+      patterns: [
+        {match: /\$SCRIPTS\$/, replacement: htmlReplace('SCRIPTS_benchmarks_external')},
+        scriptPathPatternReplacement,
+        scriptFilePatternReplacement,
+        useBundlesPatternReplacement
+      ]
+    });
+  }
 
-  // We need to replace the regular angular bundle with the web-worker bundle
-  // for web-worker e2e tests.
-  htmlTree = replace(htmlTree, {
-    files: ['examples*/**/web_workers/**/*.html'],
-    patterns: [{match: "/bundle/angular2.dev.js", replacement: "/bundle/web_worker/ui.dev.js"}]
-  });
+  if (modules.playground) {
+    // We need to replace the regular angular bundle with the web-worker bundle
+    // for web-worker e2e tests.
+    htmlTree = replace(htmlTree, {
+      files: ['playground*/**/web_workers/**/*.html'],
+      patterns: [{match: "/bundle/angular2.dev.js", replacement: "/bundle/web_worker/ui.dev.js"}]
+    });
+  }
 
-  var assetsTree =
-      new Funnel(modulesTree, {include: ['**/*'], exclude: ['**/*.{html,ts,dart}'], destDir: '/'});
+  if (modules.benchmarks || modules.benchmarks_external) {
+    var scripts = mergeTrees(servingTrees);
+  }
 
-  var scripts = mergeTrees(servingTrees);
-  var polymerFiles = new Funnel('.', {
-    files: [
-      'bower_components/polymer/lib/polymer.html',
-      'tools/build/snippets/url_params_to_form.js'
-    ]
-  });
-  var polymer = stew.mv(flatten(polymerFiles), 'benchmarks_external/src/tree/polymer');
+  if (modules.benchmarks_external) {
+    var polymerFiles = new Funnel('.', {
+      files: [
+        'bower_components/polymer/polymer.html',
+        'bower_components/polymer/polymer-micro.html',
+        'bower_components/polymer/polymer-mini.html',
+        'tools/build/snippets/url_params_to_form.js'
+      ]
+    });
+    var polymer = stew.mv(flatten(polymerFiles), 'benchmarks_external/src/tree/polymer');
 
-  var reactFiles = new Funnel('.', {files: ['node_modules/react/dist/react.min.js']});
-  var react = stew.mv(flatten(reactFiles), 'benchmarks_external/src/tree/react');
+    var reactFiles = new Funnel('.', {files: ['node_modules/react/dist/react.min.js']});
+    var react = stew.mv(flatten(reactFiles), 'benchmarks_external/src/tree/react');
+  }
 
-  htmlTree = mergeTrees([htmlTree, scripts, polymer, react]);
+  if (modules.benchmarks || modules.benchmarks_external || modules.playground) {
+    htmlTree = mergeTrees([htmlTree, scripts, polymer, react]);
+  }
 
-  es5Tree = mergeTrees([es5Tree, htmlTree, assetsTree, clientModules]);
-  es6Tree = mergeTrees([es6Tree, htmlTree, assetsTree, clientModules]);
+  // this is needed only for creating a bundle
+  // typescript resolves dependencies automatically
+  if (modules.bundle_deps) {
+    var nodeModules = new Funnel(
+        'node_modules', {include: ['rxjs/**/**', 'parse5/**/**', 'css/**/**'], destDir: '/'});
+  }
 
-  var mergedTree = mergeTrees([stew.mv(es6Tree, '/es6'), stew.mv(es5Tree, '/es5')]);
+  if (generateEs6) {
+    // Use TypeScript to transpile the *.ts files to ES6
+    var es6Tree = compileWithTypescript(modulesTree, {
+      declaration: false,
+      emitDecoratorMetadata: true,
+      experimentalDecorators: true,
+      noEmitOnError: false,
+      rootDir: './',
+      rootFilePaths: ['angular2/manual_typings/globals-es6.d.ts'],
+      inlineSourceMap: sourceMaps,
+      inlineSources: sourceMaps,
+      target: 'es6'
+    });
 
+    es6Tree = stew.mv(mergeTrees([es6Tree, htmlTree, assetsTree, nodeModules]), '/es6');
+  }
+  es5Tree = stew.mv(mergeTrees([es5Tree, htmlTree, assetsTree, nodeModules]), '/es5');
+
+  var mergedTree = mergeTrees([es6Tree, es5Tree]);
   return destCopy(mergedTree, destinationPath);
 };

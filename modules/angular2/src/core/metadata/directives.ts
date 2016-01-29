@@ -1,4 +1,4 @@
-import {isPresent, CONST, CONST_EXPR, Type} from 'angular2/src/core/facade/lang';
+import {isPresent, CONST, CONST_EXPR, Type} from 'angular2/src/facade/lang';
 import {InjectableMetadata} from 'angular2/src/core/di/metadata';
 import {ChangeDetectionStrategy} from 'angular2/src/core/change_detection';
 import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
@@ -67,7 +67,7 @@ import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
  * {@link DirectiveMetadata} directives only
  * - `bindingPropagation: BindingPropagation` to control change detection in a more granular way.
  *
- * ## Example
+ * ### Example
  *
  * The following example demonstrates how dependency injection resolves constructor arguments in
  * practice.
@@ -186,8 +186,8 @@ import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
  * A directive can also query for other child directives. Since parent directives are instantiated
  * before child directives, a directive can't simply inject the list of child directives. Instead,
  * the directive injects a {@link QueryList}, which updates its contents as children are added,
- * removed, or moved by a directive that uses a {@link ViewContainerRef} such as a `ng-for`, an
- * `ng-if`, or an `ng-switch`.
+ * removed, or moved by a directive that uses a {@link ViewContainerRef} such as a `ngFor`, an
+ * `ngIf`, or an `ngSwitch`.
  *
  * ```
  * @Directive({ selector: '[my-directive]' })
@@ -198,7 +198,7 @@ import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
  * ```
  *
  * This directive would be instantiated with a {@link QueryList} which contains `Dependency` 4 and
- * 6. Here, `Dependency` 5 would not be included, because it is not a direct child.
+ * `Dependency` 6. Here, `Dependency` 5 would not be included, because it is not a direct child.
  *
  * ### Injecting a live collection of descendant directives
  *
@@ -236,7 +236,7 @@ import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
  * If none can be
  * found, the injector supplies `null` instead of throwing an error.
  *
- * ## Example
+ * ### Example
  *
  * Here we use a decorator directive to simply define basic tool-tip behavior.
  *
@@ -324,7 +324,7 @@ import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
  * When the directive class implements some {@link angular2/lifecycle_hooks} the callbacks are
  * called by the change detection at defined points in time during the life of the directive.
  *
- * ## Example
+ * ### Example
  *
  * Let's suppose we want to implement the `unless` behavior, to conditionally include a template.
  *
@@ -399,7 +399,7 @@ export class DirectiveMetadata extends InjectableMetadata {
    * - `selector1, selector2`: select if either `selector1` or `selector2` matches.
    *
    *
-   * ## Example
+   * ### Example
    *
    * Suppose we have a directive with an `input[type=text]` selector.
    *
@@ -437,9 +437,7 @@ export class DirectiveMetadata extends InjectableMetadata {
    * ```typescript
    * @Component({
    *   selector: 'bank-account',
-   *   inputs: ['bankName', 'id: account-id']
-   * })
-   * @View({
+   *   inputs: ['bankName', 'id: account-id'],
    *   template: `
    *     Bank Name: {{bankName}}
    *     Account Id: {{id}}
@@ -453,8 +451,8 @@ export class DirectiveMetadata extends InjectableMetadata {
    *   normalizedBankName: string;
    * }
    *
-   * @Component({selector: 'app'})
-   * @View({
+   * @Component({
+   *   selector: 'app',
    *   template: `
    *     <bank-account bank-name="RBC" account-id="4747"></bank-account>
    *   `,
@@ -466,13 +464,13 @@ export class DirectiveMetadata extends InjectableMetadata {
    * ```
    *
    */
-  inputs: string[];
-
-  /**
-   * @deprecated
-   * Same as `inputs`. This is to enable easier migration.
-   */
-  properties: string[];
+  get inputs(): string[] {
+    return isPresent(this._properties) && this._properties.length > 0 ? this._properties :
+                                                                        this._inputs;
+  }
+  get properties(): string[] { return this.inputs; }
+  private _inputs: string[];
+  private _properties: string[];
 
   /**
    * Enumerates the set of event-bound output properties.
@@ -498,13 +496,13 @@ export class DirectiveMetadata extends InjectableMetadata {
    *   five5Secs = new EventEmitter();
    *
    *   constructor() {
-   *     setInterval(() => this.everySecond.next("event"), 1000);
-   *     setInterval(() => this.five5Secs.next("event"), 5000);
+   *     setInterval(() => this.everySecond.emit("event"), 1000);
+   *     setInterval(() => this.five5Secs.emit("event"), 5000);
    *   }
    * }
    *
-   * @Component({selector: 'app'})
-   * @View({
+   * @Component({
+   *   selector: 'app',
    *   template: `
    *     <interval-dir (every-second)="everySecond()" (every-five-seconds)="everyFiveSeconds()">
    *     </interval-dir>
@@ -519,13 +517,12 @@ export class DirectiveMetadata extends InjectableMetadata {
    * ```
    *
    */
-  outputs: string[];
-
-  /**
-   * @deprecated
-   * Same as `outputs`. This is to enable easier migration.
-   */
-  events: string[];
+  get outputs(): string[] {
+    return isPresent(this._events) && this._events.length > 0 ? this._events : this._outputs;
+  }
+  get events(): string[] { return this.outputs; }
+  private _outputs: string[];
+  private _events: string[];
 
   /**
    * Specify the events, actions, properties and attributes related to the host element.
@@ -535,7 +532,7 @@ export class DirectiveMetadata extends InjectableMetadata {
    * Specifies which DOM events a directive listens to via a set of `(event)` to `method`
    * key-value pairs:
    *
-   * - `event1`: the DOM event that the directive listens to.
+   * - `event`: the DOM event that the directive listens to.
    * - `statement`: the statement to execute when the event occurs.
    * If the evaluation of the statement returns `false`, then `preventDefault`is applied on the DOM
    * event.
@@ -565,8 +562,8 @@ export class DirectiveMetadata extends InjectableMetadata {
    *   }
    * }
    *
-   * @Component({selector: 'app'})
-   * @View({
+   * @Component({
+   *   selector: 'app',
    *   template: `<button counting>Increment</button>`,
    *   directives: [CountClicks]
    * })
@@ -585,11 +582,11 @@ export class DirectiveMetadata extends InjectableMetadata {
    * ### Example ([live demo](http://plnkr.co/edit/gNg0ED?p=preview))
    *
    * The following example creates a directive that sets the `valid` and `invalid` classes
-   * on the DOM element that has ng-model directive on it.
+   * on the DOM element that has ngModel directive on it.
    *
    * ```typescript
    * @Directive({
-   *   selector: '[ng-model]',
+   *   selector: '[ngModel]',
    *   host: {
    *     '[class.valid]': 'valid',
    *     '[class.invalid]': 'invalid'
@@ -601,9 +598,9 @@ export class DirectiveMetadata extends InjectableMetadata {
    *   get invalid { return this.control.invalid; }
    * }
    *
-   * @Component({selector: 'app'})
-   * @View({
-   *   template: `<input [(ng-model)]="prop">`,
+   * @Component({
+   *   selector: 'app',
+   *   template: `<input [(ngModel)]="prop">`,
    *   directives: [FORM_DIRECTIVES, NgModelStatus]
    * })
    * class App {
@@ -665,7 +662,14 @@ export class DirectiveMetadata extends InjectableMetadata {
    * }
    * ```
    */
-  bindings: any[];
+  get providers(): any[] {
+    return isPresent(this._bindings) && this._bindings.length > 0 ? this._bindings :
+                                                                    this._providers;
+  }
+  /** @deprecated */
+  get bindings(): any[] { return this.providers; }
+  private _providers: any[];
+  private _bindings: any[];
 
   /**
    * Defines the name that can be used in the template to assign this directive to a variable.
@@ -682,8 +686,6 @@ export class DirectiveMetadata extends InjectableMetadata {
    *
    * @Component({
    *   selector: 'main',
-   * })
-   * @View({
    *   template: `<child-dir #c="child"></child-dir>`,
    *   directives: [ChildDir]
    * })
@@ -694,32 +696,12 @@ export class DirectiveMetadata extends InjectableMetadata {
    */
   exportAs: string;
 
-  /**
-   * The module id of the module that contains the directive.
-   * Needed to be able to resolve relative urls for templates and styles.
-   * In Dart, this can be determined automatically and does not need to be set.
-   * In CommonJS, this can always be set to `module.id`.
-   *
-   * ## Simple Example
-   *
-   * ```
-   * @Directive({
-   *   selector: 'someDir',
-   *   moduleId: module.id
-   * })
-   * class SomeDir {
-   * }
-   *
-   * ```
-   */
-  moduleId: string;
-
   // TODO: add an example after ContentChildren and ViewChildren are in master
   /**
    * Configures the queries that will be injected into the directive.
    *
-   * Content queries are set before the `afterContentInit` callback is called.
-   * View queries are set before the `afterViewInit` callback is called.
+   * Content queries are set before the `ngAfterContentInit` callback is called.
+   * View queries are set before the `ngAfterViewInit` callback is called.
    *
    * ### Example
    *
@@ -729,9 +711,7 @@ export class DirectiveMetadata extends InjectableMetadata {
    *   queries: {
    *     contentChildren: new ContentChildren(ChildDirective),
    *     viewChildren: new ViewChildren(ChildDirective)
-   *   }
-   * })
-   * @View({
+   *   },
    *   template: '<child-directive></child-directive>',
    *   directives: [ChildDirective]
    * })
@@ -739,11 +719,11 @@ export class DirectiveMetadata extends InjectableMetadata {
    *   contentChildren: QueryList<ChildDirective>,
    *   viewChildren: QueryList<ChildDirective>
    *
-   *   afterContentInit() {
+   *   ngAfterContentInit() {
    *     // contentChildren is set
    *   }
    *
-   *   afterViewInit() {
+   *   ngAfterViewInit() {
    *     // viewChildren is set
    *   }
    * }
@@ -751,7 +731,7 @@ export class DirectiveMetadata extends InjectableMetadata {
    */
   queries: {[key: string]: any};
 
-  constructor({selector, inputs, outputs, properties, events, host, bindings, exportAs, moduleId,
+  constructor({selector, inputs, outputs, properties, events, host, bindings, providers, exportAs,
                queries}: {
     selector?: string,
     inputs?: string[],
@@ -759,32 +739,29 @@ export class DirectiveMetadata extends InjectableMetadata {
     properties?: string[],
     events?: string[],
     host?: {[key: string]: string},
-    bindings?: any[],
+    providers?: any[],
+    /** @deprecated */ bindings?: any[],
     exportAs?: string,
-    moduleId?: string,
     queries?: {[key: string]: any}
   } = {}) {
     super();
     this.selector = selector;
-    this.inputs = inputs;
-    this.outputs = outputs;
+    this._inputs = inputs;
+    this._properties = properties;
+    this._outputs = outputs;
+    this._events = events;
     this.host = host;
-
-    // TODO: remove this once properties and events are removed.
-    this.properties = properties;
-    this.events = events;
-
     this.exportAs = exportAs;
-    this.moduleId = moduleId;
     this.queries = queries;
-    this.bindings = bindings;
+    this._providers = providers;
+    this._bindings = bindings;
   }
 }
 
 /**
  * Declare reusable UI building blocks for an application.
  *
- * Each Angular component requires a single `@Component` and at least one `@View` annotation. The
+ * Each Angular component requires a single `@Component` annotation. The
  * `@Component`
  * annotation specifies when a component is instantiated, and which properties and hostListeners it
  * binds to.
@@ -792,7 +769,7 @@ export class DirectiveMetadata extends InjectableMetadata {
  * When a component is instantiated, Angular
  * - creates a shadow DOM for the component.
  * - loads the selected template into the shadow DOM.
- * - creates all the injectable objects configured with `bindings` and `viewBindings`.
+ * - creates all the injectable objects configured with `providers` and `viewProviders`.
  *
  * All template expressions and statements are then evaluated against the component instance.
  *
@@ -803,24 +780,9 @@ export class DirectiveMetadata extends InjectableMetadata {
  * When the component class implements some {@link angular2/lifecycle_hooks} the callbacks are
  * called by the change detection at defined points in time during the life of the component.
  *
- * ## Example
+ * ### Example
  *
- * ```
- * @Component({
- *   selector: 'greet'
- * })
- * @View({
- *   template: 'Hello {{name}}!'
- * })
- * class Greet {
- *   name: string;
- *
- *   constructor() {
- *     this.name = 'World';
- *   }
- * }
- * ```
- *
+ * {@example core/ts/metadata/metadata.ts region='component'}
  */
 @CONST()
 export class ComponentMetadata extends DirectiveMetadata {
@@ -862,11 +824,9 @@ export class ComponentMetadata extends DirectiveMetadata {
    *
    * @Component({
    *   selector: 'greet',
-   *   viewBindings: [
+   *   viewProviders: [
    *     Greeter
-   *   ]
-   * })
-   * @View({
+   *   ],
    *   template: `<needs-greeter></needs-greeter>`,
    *   directives: [NeedsGreeter]
    * })
@@ -875,7 +835,33 @@ export class ComponentMetadata extends DirectiveMetadata {
    *
    * ```
    */
-  viewBindings: any[];
+  get viewProviders(): any[] {
+    return isPresent(this._viewBindings) && this._viewBindings.length > 0 ? this._viewBindings :
+                                                                            this._viewProviders;
+  }
+  get viewBindings(): any[] { return this.viewProviders; }
+  private _viewProviders: any[];
+  private _viewBindings: any[];
+
+  /**
+   * The module id of the module that contains the component.
+   * Needed to be able to resolve relative urls for templates and styles.
+   * In Dart, this can be determined automatically and does not need to be set.
+   * In CommonJS, this can always be set to `module.id`.
+   *
+   * ## Simple Example
+   *
+   * ```
+   * @Directive({
+   *   selector: 'someDir',
+   *   moduleId: module.id
+   * })
+   * class SomeDir {
+   * }
+   *
+   * ```
+   */
+  moduleId: string;
 
   templateUrl: string;
 
@@ -892,18 +878,21 @@ export class ComponentMetadata extends DirectiveMetadata {
   encapsulation: ViewEncapsulation;
 
   constructor({selector, inputs, outputs, properties, events, host, exportAs, moduleId, bindings,
-               viewBindings, changeDetection = ChangeDetectionStrategy.Default, queries,
-               templateUrl, template, styleUrls, styles, directives, pipes, encapsulation}: {
+               providers, viewBindings, viewProviders,
+               changeDetection = ChangeDetectionStrategy.Default, queries, templateUrl, template,
+               styleUrls, styles, directives, pipes, encapsulation}: {
     selector?: string,
     inputs?: string[],
     outputs?: string[],
     properties?: string[],
     events?: string[],
     host?: {[key: string]: string},
-    bindings?: any[],
+    /** @deprecated */ bindings?: any[],
+    providers?: any[],
     exportAs?: string,
     moduleId?: string,
-    viewBindings?: any[],
+    /** @deprecated */ viewBindings?: any[],
+    viewProviders?: any[],
     queries?: {[key: string]: any},
     changeDetection?: ChangeDetectionStrategy,
     templateUrl?: string,
@@ -922,14 +911,14 @@ export class ComponentMetadata extends DirectiveMetadata {
       events: events,
       host: host,
       exportAs: exportAs,
-      moduleId: moduleId,
       bindings: bindings,
+      providers: providers,
       queries: queries
     });
 
     this.changeDetection = changeDetection;
-    this.viewBindings = viewBindings;
-
+    this._viewProviders = viewProviders;
+    this._viewBindings = viewBindings;
     this.templateUrl = templateUrl;
     this.template = template;
     this.styleUrls = styleUrls;
@@ -937,29 +926,28 @@ export class ComponentMetadata extends DirectiveMetadata {
     this.directives = directives;
     this.pipes = pipes;
     this.encapsulation = encapsulation;
+    this.moduleId = moduleId;
   }
 }
 
 /**
  * Declare reusable pipe function.
  *
- * ## Example
+ * A "pure" pipe is only re-evaluated when either the input or any of the arguments change.
  *
- * ```
- * @Pipe({
- *   name: 'lowercase'
- * })
- * class Lowercase {
- *   transform(v, args) { return v.toLowerCase(); }
- * }
- * ```
+ * When not specified, pipes default to being pure.
+ *
+ * ### Example
+ *
+ * {@example core/ts/metadata/metadata.ts region='pipe'}
  */
 @CONST()
 export class PipeMetadata extends InjectableMetadata {
   name: string;
+  /** @internal */
   _pure: boolean;
 
-  constructor({name, pure}: {name: string, pure: boolean}) {
+  constructor({name, pure}: {name: string, pure?: boolean}) {
     super();
     this.name = name;
     this._pure = pure;
@@ -982,8 +970,8 @@ export class PipeMetadata extends InjectableMetadata {
  * The following example creates a component with two input properties.
  *
  * ```typescript
- * @Component({selector: 'bank-account'})
- * @View({
+ * @Component({
+ *   selector: 'bank-account',
  *   template: `
  *     Bank Name: {{bankName}}
  *     Account Id: {{id}}
@@ -997,8 +985,8 @@ export class PipeMetadata extends InjectableMetadata {
  *   normalizedBankName: string;
  * }
  *
- * @Component({selector: 'app'})
- * @View({
+ * @Component({
+ *   selector: 'app',
  *   template: `
  *     <bank-account bank-name="RBC" account-id="4747"></bank-account>
  *   `,
@@ -1039,13 +1027,13 @@ export class InputMetadata {
  *   @Output('everyFiveSeconds') five5Secs = new EventEmitter();
  *
  *   constructor() {
- *     setInterval(() => this.everySecond.next("event"), 1000);
- *     setInterval(() => this.five5Secs.next("event"), 5000);
+ *     setInterval(() => this.everySecond.emit("event"), 1000);
+ *     setInterval(() => this.five5Secs.emit("event"), 5000);
  *   }
  * }
  *
- * @Component({selector: 'app'})
- * @View({
+ * @Component({
+ *   selector: 'app',
  *   template: `
  *     <interval-dir (every-second)="everySecond()" (every-five-seconds)="everyFiveSeconds()">
  *     </interval-dir>
@@ -1077,19 +1065,19 @@ export class OutputMetadata {
  * ### Example
  *
  * The following example creates a directive that sets the `valid` and `invalid` classes
- * on the DOM element that has ng-model directive on it.
+ * on the DOM element that has ngModel directive on it.
  *
  * ```typescript
- * @Directive({selector: '[ng-model]'})
+ * @Directive({selector: '[ngModel]'})
  * class NgModelStatus {
  *   constructor(public control:NgModel) {}
  *   @HostBinding('[class.valid]') get valid { return this.control.valid; }
  *   @HostBinding('[class.invalid]') get invalid { return this.control.invalid; }
  * }
  *
- * @Component({selector: 'app'})
- * @View({
- *   template: `<input [(ng-model)]="prop">`,
+ * @Component({
+ *   selector: 'app',
+ *   template: `<input [(ngModel)]="prop">`,
  *   directives: [FORM_DIRECTIVES, NgModelStatus]
  * })
  * class App {
@@ -1128,8 +1116,8 @@ export class HostBindingMetadata {
  *   }
  * }
  *
- * @Component({selector: 'app'})
- * @View({
+ * @Component({
+ *   selector: 'app',
  *   template: `<button counting>Increment</button>`,
  *   directives: [CountClicks]
  * })

@@ -10,18 +10,18 @@ import {
   it,
   xit,
   SpyObject
-} from 'angular2/test_lib';
-import {ObservableWrapper} from 'angular2/src/core/facade/async';
+} from 'angular2/testing_internal';
+import {ObservableWrapper} from 'angular2/src/facade/async';
 import {BrowserXhr} from 'angular2/src/http/backends/browser_xhr';
 import {MockConnection, MockBackend} from 'angular2/src/http/backends/mock_backend';
-import {bind, Injector} from 'angular2/core';
+import {provide, Injector} from 'angular2/core';
 import {Request} from 'angular2/src/http/static_request';
 import {Response} from 'angular2/src/http/static_response';
 import {Headers} from 'angular2/src/http/headers';
-import {Map} from 'angular2/src/core/facade/collection';
+import {Map} from 'angular2/src/facade/collection';
 import {RequestOptions, BaseRequestOptions} from 'angular2/src/http/base_request_options';
 import {BaseResponseOptions, ResponseOptions} from 'angular2/src/http/base_response_options';
-import {ResponseTypes} from 'angular2/src/http/enums';
+import {ResponseType} from 'angular2/src/http/enums';
 
 export function main() {
   describe('MockBackend', () => {
@@ -35,7 +35,7 @@ export function main() {
 
     beforeEach(() => {
       var injector = Injector.resolveAndCreate(
-          [bind(ResponseOptions).toClass(BaseResponseOptions), MockBackend]);
+          [provide(ResponseOptions, {useClass: BaseResponseOptions}), MockBackend]);
       backend = injector.get(MockBackend);
       var base = new BaseRequestOptions();
       sampleRequest1 = new Request(base.merge(new RequestOptions({url: 'https://google.com'})));

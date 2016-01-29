@@ -9,10 +9,10 @@ import {
   inject,
   it,
   xit,
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
-import {PromiseWrapper} from 'angular2/src/core/facade/async';
-import {Json, isBlank} from 'angular2/src/core/facade/lang';
+import {PromiseWrapper} from 'angular2/src/facade/async';
+import {Json, isBlank} from 'angular2/src/facade/lang';
 
 import {
   WebDriverExtension,
@@ -20,6 +20,7 @@ import {
   WebDriverAdapter,
   Injector,
   bind,
+  provide,
   Options
 } from 'benchpress/common';
 
@@ -43,6 +44,7 @@ export function main() {
     var chrome45TimelineEvents = new TraceEventFactory('devtools.timeline', 'pid0');
     var chromeTimelineV8Events = new TraceEventFactory('devtools.timeline,v8', 'pid0');
     var chromeBlinkTimelineEvents = new TraceEventFactory('blink,devtools.timeline', 'pid0');
+    var chromeBlinkUserTimingEvents = new TraceEventFactory('blink.user_timing', 'pid0');
     var benchmarkEvents = new TraceEventFactory('benchmark', 'pid0');
     var normEvents = new TraceEventFactory('timeline', 'pid0');
 
@@ -353,7 +355,48 @@ export function main() {
                });
          }));
 
+      it('should report navigationStart', inject([AsyncTestCompleter], (async) => {
+           createExtension([chromeBlinkUserTimingEvents.start('navigationStart', 1234)],
+                           CHROME45_USER_AGENT)
+               .readPerfLog()
+               .then((events) => {
+                 expect(events).toEqual([normEvents.start('navigationStart', 1.234)]);
+                 async.done();
+               });
+         }));
 
+      it('should report receivedData', inject([AsyncTestCompleter], (async) => {
+           createExtension(
+               [
+                 chrome45TimelineEvents.instant('ResourceReceivedData', 1234,
+                                                {'data': {'encodedDataLength': 987}})
+               ],
+               CHROME45_USER_AGENT)
+               .readPerfLog()
+               .then((events) => {
+                 expect(events).toEqual(
+                     [normEvents.instant('receivedData', 1.234, {'encodedDataLength': 987})]);
+                 async.done();
+               });
+         }));
+
+      it('should report sendRequest', inject([AsyncTestCompleter], (async) => {
+           createExtension(
+               [
+                 chrome45TimelineEvents.instant(
+                     'ResourceSendRequest', 1234,
+                     {'data': {'url': 'http://here', 'requestMethod': 'GET'}})
+               ],
+               CHROME45_USER_AGENT)
+               .readPerfLog()
+               .then((events) => {
+                 expect(events).toEqual([
+                   normEvents.instant('sendRequest', 1.234,
+                                      {'url': 'http://here', 'method': 'GET'})
+                 ]);
+                 async.done();
+               });
+         }));
     });
 
     describe('readPerfLog (common)', () => {

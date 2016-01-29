@@ -1,8 +1,14 @@
-import {Type, isPresent, isFunction, global, stringify} from 'angular2/src/core/facade/lang';
-import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
-import {ListWrapper} from 'angular2/src/core/facade/collection';
+import {
+  Type,
+  isPresent,
+  isFunction,
+  global,
+  stringify,
+  ConcreteType
+} from 'angular2/src/facade/lang';
+import {BaseException} from 'angular2/src/facade/exceptions';
 import {GetterFn, SetterFn, MethodFn} from './types';
-import {PlatformReflectionCapabilities} from 'platform_reflection_capabilities';
+import {PlatformReflectionCapabilities} from './platform_reflection_capabilities';
 
 export class ReflectionCapabilities implements PlatformReflectionCapabilities {
   private _reflect: any;
@@ -11,7 +17,7 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
 
   isReflectionEnabled(): boolean { return true; }
 
-  factory(t: Type): Function {
+  factory(t: ConcreteType): Function {
     switch (t.length) {
       case 0:
         return () => new t();
@@ -76,13 +82,14 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
         `Cannot create a factory for '${stringify(t)}' because its constructor has more than 20 arguments`);
   }
 
+  /** @internal */
   _zipTypesAndAnnotaions(paramTypes, paramAnnotations): any[][] {
     var result;
 
     if (typeof paramTypes === 'undefined') {
-      result = ListWrapper.createFixedSize(paramAnnotations.length);
+      result = new Array(paramAnnotations.length);
     } else {
-      result = ListWrapper.createFixedSize(paramTypes.length);
+      result = new Array(paramTypes.length);
     }
 
     for (var i = 0; i < result.length; i++) {
@@ -115,7 +122,10 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
         return this._zipTypesAndAnnotaions(paramTypes, paramAnnotations);
       }
     }
-    return ListWrapper.createFixedSize((<any>typeOrFunc).length);
+    // The array has to be filled with `undefined` because holes would be skipped by `some`
+    let parameters = new Array((<any>typeOrFunc.length));
+    parameters.fill(undefined);
+    return parameters;
   }
 
   annotations(typeOrFunc: Type): any[] {

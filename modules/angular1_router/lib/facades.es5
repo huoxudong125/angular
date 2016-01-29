@@ -173,6 +173,10 @@ var StringMapWrapper = {
 
 var List = Array;
 var ListWrapper = {
+  clear: function (l) {
+    l.length = 0;
+  },
+
   create: function () {
     return [];
   },
@@ -189,6 +193,10 @@ var ListWrapper = {
     if (!array)
       return null;
     return array[0];
+  },
+
+  last: function(array) {
+    return (array && array.length) > 0 ? array[array.length - 1] : null;
   },
 
   map: function (l, fn) {
@@ -247,16 +255,8 @@ var StringWrapper = {
     return s.split(re);
   },
 
-  substring: function(s, start, end) {
-    return s.substr(start, end);
-  },
-
   replaceAll: function(s, from, replace) {
     return s.replace(from, replace);
-  },
-
-  startsWith: function(s, start) {
-    return s.substr(0, start.length) === start;
   },
 
   replaceAllMapped: function(s, from, cb) {
@@ -282,6 +282,9 @@ var BaseException = Error;
 
 var ObservableWrapper = {
   callNext: function(ob, val) {
+    ob.fn(val);
+  },
+  callEmit: function(ob, val) {
     ob.fn(val);
   },
 

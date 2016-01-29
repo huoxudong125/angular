@@ -7,7 +7,6 @@ import {
   Chain,
   Conditional,
   EmptyExpr,
-  If,
   BindingPipe,
   FunctionCall,
   ImplicitReceiver,
@@ -19,12 +18,13 @@ import {
   LiteralPrimitive,
   MethodCall,
   PrefixNot,
+  Quote,
   SafePropertyRead,
   SafeMethodCall
 } from 'angular2/src/core/change_detection/parser/ast';
 
 
-import {StringWrapper, isPresent, isString} from 'angular2/src/core/facade/lang';
+import {StringWrapper, isPresent, isString} from 'angular2/src/facade/lang';
 
 export class Unparser implements AstVisitor {
   private static _quoteRegExp = /"/g;
@@ -68,17 +68,6 @@ export class Unparser implements AstVisitor {
     this._visit(ast.trueExp);
     this._expression += ' : ';
     this._visit(ast.falseExp);
-  }
-
-  visitIf(ast: If) {
-    this._expression += 'if (';
-    this._visit(ast.condition);
-    this._expression += ') ';
-    this._visitExpOrBlock(ast.trueExp);
-    if (isPresent(ast.falseExp)) {
-      this._expression += ' else ';
-      this._visitExpOrBlock(ast.falseExp);
-    }
   }
 
   visitPipe(ast: BindingPipe) {
@@ -199,12 +188,7 @@ export class Unparser implements AstVisitor {
     this._expression += ')';
   }
 
-  private _visit(ast: AST) { ast.visit(this); }
+  visitQuote(ast: Quote) { this._expression += `${ast.prefix}:${ast.uninterpretedExpression}`; }
 
-  private _visitExpOrBlock(ast: AST) {
-    var isBlock = ast instanceof Chain || ast instanceof EmptyExpr;
-    if (isBlock) this._expression += '{ ';
-    this._visit(ast);
-    if (isBlock) this._expression += ' }';
-  }
+  private _visit(ast: AST) { ast.visit(this); }
 }

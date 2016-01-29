@@ -1,8 +1,8 @@
-import {ListWrapper, Map} from 'angular2/src/core/facade/collection';
+import {ListWrapper, Map} from 'angular2/src/facade/collection';
 import {Company, Opportunity, Offering, Account, CustomDate, STATUS_LIST} from './common';
-import {NgFor} from 'angular2/core';
+import {NgFor} from 'angular2/common';
 
-import {Component, Directive, View} from 'angular2/angular2';
+import {Component, Directive, View} from 'angular2/core';
 
 export class HasStyle {
   cellWidth: number;
@@ -42,7 +42,7 @@ export class Stage {
   directives: [NgFor],
   template: `
       <div [style.width.px]="cellWidth">
-          <button template="ng-for #stage of stages"
+          <button template="ngFor #stage of stages"
                   [disabled]="stage.isDisabled"
                   [style.background-color]="stage.backgroundColor"
                   on-click="setStage(stage)">

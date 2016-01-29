@@ -25,9 +25,6 @@ class ReflectionInfoVisitor extends RecursiveAstVisitor<ReflectionInfoModel> {
   final ParameterVisitor _parameterVisitor = new ParameterVisitor();
   final _PropertyMetadataVisitor _propMetadataVisitor;
 
-  /// Whether an Angular 2 `Reflection` has been found.
-  bool _foundNgReflection = false;
-
   ReflectionInfoVisitor._(this.assetId, this._annotationMatcher,
       this._annotationVisitor, this._propMetadataVisitor);
 
@@ -37,8 +34,6 @@ class ReflectionInfoVisitor extends RecursiveAstVisitor<ReflectionInfoModel> {
     return new ReflectionInfoVisitor._(assetId, annotationMatcher,
         annotationVisitor, new _PropertyMetadataVisitor(annotationVisitor));
   }
-
-  bool get shouldCreateNgDeps => _foundNgReflection;
 
   ConstructorDeclaration _getCtor(ClassDeclaration node) {
     int numCtorsFound = 0;
@@ -61,8 +56,10 @@ class ReflectionInfoVisitor extends RecursiveAstVisitor<ReflectionInfoModel> {
     if (numCtorsFound > 1) {
       var ctorName = ctor.name;
       if (ctorName != null) {
-        logger.warning('Found ${numCtorsFound} ctors for class ${node.name},'
-            'Using constructor ${ctorName}.');
+        log.warning(
+            'Found ${numCtorsFound} constructors for class '
+            '${node.name}; using constructor ${ctorName}.',
+            asset: assetId);
       }
     }
     return ctor;
@@ -82,9 +79,34 @@ class ReflectionInfoVisitor extends RecursiveAstVisitor<ReflectionInfoModel> {
     }
 
     if (node.metadata != null) {
+      var componentDirectives = new Iterable.empty();
+      var componentPipes = new Iterable.empty();
+      var viewDirectives, viewPipes;
       node.metadata.forEach((node) {
+        if (_annotationMatcher.isComponent(node, assetId)) {
+          componentDirectives = _extractReferencedTypes(node, 'directives');
+          componentPipes = _extractReferencedTypes(node, 'pipes');
+        } else if (_annotationMatcher.isView(node, assetId)) {
+          viewDirectives = _extractReferencedTypes(node, 'directives');
+          viewPipes = _extractReferencedTypes(node, 'pipes');
+        }
         model.annotations.add(_annotationVisitor.visitAnnotation(node));
       });
+      if ((componentDirectives.isNotEmpty || componentPipes.isNotEmpty) &&
+          (viewDirectives != null || viewPipes != null)) {
+        log.warning(
+            'Cannot specify view parameters on @Component when a @View '
+            'is present. Component name: ${model.name}',
+            asset: assetId);
+      }
+      model.directives.addAll(componentDirectives);
+      model.pipes.addAll(componentPipes);
+      if (viewDirectives != null) {
+        model.directives.addAll(viewDirectives);
+      }
+      if (viewPipes != null) {
+        model.pipes.addAll(viewPipes);
+      }
     }
     if (ctor != null &&
         ctor.parameters != null &&
@@ -137,6 +159,46 @@ class ReflectionInfoVisitor extends RecursiveAstVisitor<ReflectionInfoModel> {
     }
   }
 
+  /// Returns [PrefixedType] values parsed from the value of the
+  /// `fieldName` parameter of the provided `node`.
+  /// This will always return a non-null value, so if there is no field
+  /// called `fieldName`, it will return an empty iterable.
+  Iterable<PrefixedType> _extractReferencedTypes(
+      Annotation node, String fieldName) {
+    assert(_annotationMatcher.isComponent(node, assetId) ||
+        _annotationMatcher.isView(node, assetId));
+
+    if (node.arguments == null && node.arguments.arguments == null) {
+      return const [];
+    }
+    final typesNode = node.arguments.arguments.firstWhere((arg) {
+      return arg is NamedExpression && '${arg.name.label}' == fieldName;
+    }, orElse: () => null);
+    if (typesNode == null) return const [];
+
+    if (typesNode.expression is! ListLiteral) {
+      log.warning(
+          'Angular 2 expects a list literal for `${fieldName}` '
+          'but found a ${typesNode.expression.runtimeType}',
+          asset: assetId);
+      return const [];
+    }
+    final types = <PrefixedType>[];
+    for (var dep in (typesNode.expression as ListLiteral).elements) {
+      if (dep is PrefixedIdentifier) {
+        types.add(new PrefixedType()
+          ..prefix = '${dep.prefix}'
+          ..name = '${dep.identifier}');
+      } else if (dep is Identifier) {
+        types.add(new PrefixedType()..name = '${dep}');
+      } else {
+        log.warning('Ignoring unexpected value $dep in `${fieldName}`.',
+            asset: assetId);
+      }
+    }
+    return types;
+  }
+
   @override
   ReflectionInfoModel visitFunctionDeclaration(FunctionDeclaration node) {
     if (!node.metadata
@@ -180,14 +242,17 @@ class _PropertyMetadataVisitor
   List<PropertyMetadataModel> visitFieldDeclaration(FieldDeclaration node) {
     var retVal = null;
     for (var variable in node.fields.variables) {
-      var propModel = new PropertyMetadataModel()..name = '${variable.name}';
+      var propModel = null;
       for (var meta in node.metadata) {
         var annotationModel = meta.accept(_annotationVisitor);
         if (annotationModel != null) {
+          if (propModel == null) {
+            propModel = new PropertyMetadataModel()..name = '${variable.name}';
+          }
           propModel.annotations.add(annotationModel);
         }
       }
-      if (propModel.annotations.isNotEmpty) {
+      if (propModel != null && propModel.annotations.isNotEmpty) {
         if (retVal == null) {
           retVal = <PropertyMetadataModel>[];
         }
@@ -200,14 +265,17 @@ class _PropertyMetadataVisitor
   @override
   List<PropertyMetadataModel> visitMethodDeclaration(MethodDeclaration node) {
     if (node.isGetter || node.isSetter) {
-      var propModel = new PropertyMetadataModel()..name = '${node.name}';
+      var propModel = null;
       for (var meta in node.metadata) {
         var annotationModel = meta.accept(_annotationVisitor);
         if (annotationModel != null) {
+          if (propModel == null) {
+            propModel = new PropertyMetadataModel()..name = '${node.name}';
+          }
           propModel.annotations.add(annotationModel);
         }
       }
-      if (propModel.annotations.isNotEmpty) {
+      if (propModel != null && propModel.annotations.isNotEmpty) {
         return <PropertyMetadataModel>[propModel];
       }
     }

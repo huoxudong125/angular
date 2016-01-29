@@ -1,7 +1,7 @@
 import {reflector} from 'angular2/src/core/reflection/reflection';
-import {isPresent} from 'angular2/src/core/facade/lang';
-import {getIntParameter, bindAction, microBenchmark} from 'angular2/src/test_lib/benchmark_util';
-import {BrowserDomAdapter} from 'angular2/src/core/dom/browser_adapter';
+import {isPresent} from 'angular2/src/facade/lang';
+import {getIntParameter, bindAction, microBenchmark} from 'angular2/src/testing/benchmark_util';
+import {BrowserDomAdapter} from 'angular2/src/platform/browser/browser_adapter';
 
 import {
   Lexer,
@@ -245,13 +245,12 @@ function runBaselineWrites(baselineHead, numberOfRuns, object) {
 // ---- CHANGE DETECTION
 
 function setUpChangeDetection(protoChangeDetectorFactory: Function, iterations, object) {
-  var dispatcher = new DummyDispatcher();
   var parser = new Parser(new Lexer());
 
-  var genConfig = new ChangeDetectorGenConfig(false, false, false, true);
+  var genConfig = new ChangeDetectorGenConfig(false, false, true);
   var parentProto = protoChangeDetectorFactory(
       new ChangeDetectorDefinition('parent', null, [], [], [], [], genConfig));
-  var parentCd = parentProto.instantiate(dispatcher);
+  var parentCd = parentProto.instantiate();
 
   var directiveRecord = new DirectiveRecord({directiveIndex: new DirectiveIndex(0, 0)});
   var bindings = [
@@ -281,11 +280,11 @@ function setUpChangeDetection(protoChangeDetectorFactory: Function, iterations, 
       new ChangeDetectorDefinition("proto", null, [], bindings, [], [directiveRecord], genConfig));
 
   var targetObj = new Obj();
-  parentCd.hydrate(object, null, new FakeDirectives(targetObj), null);
+  parentCd.hydrate(object, null, new DummyDispatcher(targetObj), null);
   for (var i = 0; i < iterations; ++i) {
-    var cd = proto.instantiate(dispatcher);
-    cd.hydrate(object, null, new FakeDirectives(targetObj), null);
-    parentCd.addChild(cd);
+    var cd = proto.instantiate();
+    cd.hydrate(object, null, new DummyDispatcher(targetObj), null);
+    parentCd.addContentChild(cd);
   }
   return parentCd;
 }
@@ -374,20 +373,17 @@ export function main() {
   }
 }
 
-class FakeDirectives {
-  targetObj: Obj;
-
-  constructor(targetObj) { this.targetObj = targetObj; }
-
-  getDirectiveFor(record) { return this.targetObj; }
-}
-
 class DummyDispatcher implements ChangeDispatcher {
-  getDebugContext(elementIndex: number, directiveIndex: DirectiveIndex): DebugContext {
+  targetObj: Obj;
+  constructor(targetObj) { this.targetObj = targetObj; }
+  getDebugContext(appElement: any, elementIndex: number, directiveIndex: number): DebugContext {
     throw "getDebugContext not implemented.";
   }
   notifyOnBinding(bindingTarget, newValue) { throw "Should not be used"; }
   logBindingUpdate(bindingTarget, newValue) { throw "Should not be used"; }
   notifyAfterContentChecked() {}
   notifyAfterViewChecked() {}
+  notifyOnDestroy() {}
+  getDetectorFor(directiveIndex: DirectiveIndex): any { throw "getDetectorFor not implemented."; }
+  getDirectiveFor(record) { return this.targetObj; }
 }

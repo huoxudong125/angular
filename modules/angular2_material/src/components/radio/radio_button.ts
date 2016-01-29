@@ -1,6 +1,5 @@
 import {
   Component,
-  View,
   ViewEncapsulation,
   Host,
   SkipSelf,
@@ -8,11 +7,11 @@ import {
   Optional,
   OnChanges,
   OnInit
-} from 'angular2/angular2';
+} from 'angular2/core';
 
-import {isPresent, StringWrapper, NumberWrapper} from 'angular2/src/core/facade/lang';
-import {ObservableWrapper, EventEmitter} from 'angular2/src/core/facade/async';
-import {Event, KeyboardEvent} from 'angular2/src/core/facade/browser';
+import {isPresent, StringWrapper, NumberWrapper} from 'angular2/src/facade/lang';
+import {ObservableWrapper, EventEmitter} from 'angular2/src/facade/async';
+import {Event, KeyboardEvent} from 'angular2/src/facade/browser';
 
 import {MdRadioDispatcher} from 'angular2_material/src/components/radio/radio_dispatcher';
 import {KeyCodes} from 'angular2_material/src/core/key_codes';
@@ -42,9 +41,7 @@ var _uniqueIdCounter: number = 0;
     // TODO(jelbourn): Remove ^ when event retargeting is fixed.
     '(keydown)': 'onKeydown($event)',
     '[tabindex]': 'tabindex',
-  }
-})
-@View({
+  },
   templateUrl: 'package:angular2_material/src/components/radio/radio_group.html',
   encapsulation: ViewEncapsulation.None
 })
@@ -68,7 +65,7 @@ export class MdRadioGroup implements OnChanges {
   /** The ID of the selected radio button. */
   selectedRadioId: string;
 
-  change: EventEmitter;
+  change: EventEmitter<any>;
 
   tabindex: number;
 
@@ -102,7 +99,7 @@ export class MdRadioGroup implements OnChanges {
   }
 
   /** Change handler invoked when bindings are resolved or when bindings have changed. */
-  onChanges(_) {
+  ngOnChanges(_) {
     // If the component has a disabled attribute with no value, it will set disabled = ''.
     this.disabled = isPresent(this.disabled) && this.disabled !== false;
 
@@ -125,7 +122,7 @@ export class MdRadioGroup implements OnChanges {
     this.value = value;
     this.selectedRadioId = id;
     this.activedescendant = id;
-    ObservableWrapper.callNext(this.change, null);
+    ObservableWrapper.callEmit(this.change, null);
   }
 
   /** Registers a child radio button with this group. */
@@ -179,7 +176,7 @@ export class MdRadioGroup implements OnChanges {
 
     this.radioDispatcher.notify(this.name_);
     radio.checked = true;
-    ObservableWrapper.callNext(this.change, null);
+    ObservableWrapper.callEmit(this.change, null);
 
     this.value = radio.value;
     this.selectedRadioId = radio.id;
@@ -198,9 +195,7 @@ export class MdRadioGroup implements OnChanges {
     '[attr.aria-checked]': 'checked',
     '[attr.aria-disabled]': 'disabled',
     '(keydown)': 'onKeydown($event)',
-  }
-})
-@View({
+  },
   templateUrl: 'package:angular2_material/src/components/radio/radio_button.html',
   directives: [],
   encapsulation: ViewEncapsulation.None
@@ -263,7 +258,7 @@ export class MdRadioButton implements OnInit {
   }
 
   /** Change handler invoked when bindings are resolved or when bindings have changed. */
-  onInit() {
+  ngOnInit() {
     if (isPresent(this.radioGroup)) {
       this.name = this.radioGroup.getName();
     }

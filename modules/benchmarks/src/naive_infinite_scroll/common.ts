@@ -1,6 +1,6 @@
-import {Math} from 'angular2/src/core/facade/math';
-import {StringWrapper} from 'angular2/src/core/facade/lang';
-import {ListWrapper, Map, MapWrapper} from 'angular2/src/core/facade/collection';
+import {Math} from 'angular2/src/facade/math';
+import {StringWrapper} from 'angular2/src/facade/lang';
+import {ListWrapper, Map, MapWrapper} from 'angular2/src/facade/collection';
 
 export var ITEMS = 1000;
 export var ITEM_HEIGHT = 40;
@@ -87,7 +87,7 @@ export class RawEntity {
 
   remove(key: string) {
     if (!StringWrapper.contains(key, '.')) {
-      return MapWrapper.delete(this._data, key);
+      return this._data.delete(key);
     }
     var pieces = key.split('.');
     var last = ListWrapper.last(pieces);

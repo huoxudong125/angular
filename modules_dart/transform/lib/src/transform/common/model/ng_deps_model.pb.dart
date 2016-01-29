@@ -17,7 +17,12 @@ class NgDepsModel extends GeneratedMessage {
         ExportModel.create)
     ..pp(5, 'reflectables', PbFieldType.PM, ReflectionInfoModel.$checkItem,
         ReflectionInfoModel.create)
-    ..a(6, 'sourceFile', PbFieldType.OS);
+    ..a(6, 'sourceFile', PbFieldType.OS)
+    ..p(7, 'getters', PbFieldType.PS)
+    ..p(8, 'setters', PbFieldType.PS)
+    ..p(9, 'methods', PbFieldType.PS)
+    ..pp(10, 'depImports', PbFieldType.PM, ImportModel.$checkItem,
+        ImportModel.create);
 
   NgDepsModel() : super();
   NgDepsModel.fromBuffer(List<int> i,
@@ -40,29 +45,37 @@ class NgDepsModel extends GeneratedMessage {
     if (v is! NgDepsModel) checkItemFailed(v, 'NgDepsModel');
   }
 
-  String get libraryUri => getField(1);
+  String get libraryUri => $_get(0, 1, '');
   void set libraryUri(String v) {
-    setField(1, v);
+    $_setString(0, 1, v);
   }
 
-  bool hasLibraryUri() => hasField(1);
+  bool hasLibraryUri() => $_has(0, 1);
   void clearLibraryUri() => clearField(1);
 
-  List<String> get partUris => getField(2);
+  List<String> get partUris => $_get(1, 2, null);
 
-  List<ImportModel> get imports => getField(3);
+  List<ImportModel> get imports => $_get(2, 3, null);
 
-  List<ExportModel> get exports => getField(4);
+  List<ExportModel> get exports => $_get(3, 4, null);
 
-  List<ReflectionInfoModel> get reflectables => getField(5);
+  List<ReflectionInfoModel> get reflectables => $_get(4, 5, null);
 
-  String get sourceFile => getField(6);
+  String get sourceFile => $_get(5, 6, '');
   void set sourceFile(String v) {
-    setField(6, v);
+    $_setString(5, 6, v);
   }
 
-  bool hasSourceFile() => hasField(6);
+  bool hasSourceFile() => $_has(5, 6);
   void clearSourceFile() => clearField(6);
+
+  List<String> get getters => $_get(6, 7, null);
+
+  List<String> get setters => $_get(7, 8, null);
+
+  List<String> get methods => $_get(8, 9, null);
+
+  List<ImportModel> get depImports => $_get(9, 10, null);
 }
 
 class _ReadonlyNgDepsModel extends NgDepsModel with ReadonlyMessageMixin {}
@@ -94,12 +107,22 @@ const NgDepsModel$json = const {
       '6': '.angular2.src.transform.common.model.proto.ReflectionInfoModel'
     },
     const {'1': 'source_file', '3': 6, '4': 1, '5': 9},
+    const {'1': 'getters', '3': 7, '4': 3, '5': 9},
+    const {'1': 'setters', '3': 8, '4': 3, '5': 9},
+    const {'1': 'methods', '3': 9, '4': 3, '5': 9},
+    const {
+      '1': 'dep_imports',
+      '3': 10,
+      '4': 3,
+      '5': 11,
+      '6': '.angular2.src.transform.common.model.proto.ImportModel'
+    },
   ],
 };
 
 /**
  * Generated with:
- * ng_deps_model.proto (83fe43a087fdd0a7ebee360cd6b669570df4d216)
- * libprotoc 2.5.0
- * dart-protoc-plugin (cc35f743de982a4916588b9c505dd21c7fe87d17)
+ * ng_deps_model.proto (64702efcc1d7fb434f3652943ba051104960ffd5)
+ * libprotoc 2.6.1
+ * dart-protoc-plugin (af5fc2bf1de367a434c3b1847ab260510878ffc0)
  */

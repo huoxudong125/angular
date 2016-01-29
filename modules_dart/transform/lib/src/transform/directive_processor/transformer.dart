@@ -3,45 +3,43 @@ library angular2.transform.directive_processor.transformer;
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:angular2/src/core/dom/html_adapter.dart';
+import 'package:barback/barback.dart';
+
+import 'package:angular2/src/platform/server/html_adapter.dart';
 import 'package:angular2/src/transform/common/asset_reader.dart';
-import 'package:angular2/src/transform/common/logging.dart' as log;
 import 'package:angular2/src/transform/common/names.dart';
 import 'package:angular2/src/transform/common/options.dart';
-import 'package:barback/barback.dart';
+import 'package:angular2/src/transform/common/zone.dart' as zone;
 
 import 'rewriter.dart';
 
 /// Transformer responsible for processing all .dart assets and creating
-/// .ng_deps.dart files which register @Injectable annotated classes with the
-/// reflector.
+/// .ng_summary.json files which summarize those assets.
 ///
-/// This will also create .ng_deps.dart files for classes annotated
-/// with @Component, @View, @Directive, etc.
+/// See `angular2/src/transform/common/ng_meta.dart` for the structure of these
+/// output files.
 ///
-/// This transformer is the first phase in a two-phase transform. It should
-/// be followed by {@link DirectiveLinker}.
-class DirectiveProcessor extends Transformer implements DeclaringTransformer {
+/// This transformer is part of a multi-phase transform.
+/// See `angular2/src/transform/transformer.dart` for transformer ordering.
+class DirectiveProcessor extends Transformer implements LazyTransformer {
   final TransformerOptions options;
   final _encoder = const JsonEncoder.withIndent('  ');
 
   DirectiveProcessor(this.options);
 
   @override
-  bool isPrimary(AssetId id) => id.extension.endsWith('dart');
+  bool isPrimary(AssetId id) =>
+      id.extension.endsWith('dart') && !isGenerated(id.path);
 
-  /// We don't always output these, but providing a superset of our outputs
-  /// should be safe. Barback will just have to wait until `apply` finishes to
-  /// determine that one or the other will not be emitted.
   @override
   declareOutputs(DeclaringTransform transform) {
-    transform.declareOutput(_ngMetaAssetId(transform.primaryId));
+    transform.declareOutput(_ngSummaryAssetId(transform.primaryId));
   }
 
   @override
   Future apply(Transform transform) async {
     Html5LibDomAdapter.makeCurrent();
-    await log.initZoned(transform, () async {
+    return zone.exec(() async {
       var primaryId = transform.primaryInput.id;
       var reader = new AssetReader.fromTransform(transform);
       var ngMeta =
@@ -50,12 +48,12 @@ class DirectiveProcessor extends Transformer implements DeclaringTransformer {
         return;
       }
       transform.addOutput(new Asset.fromString(
-          _ngMetaAssetId(primaryId), _encoder.convert(ngMeta.toJson())));
-    });
+          _ngSummaryAssetId(primaryId), _encoder.convert(ngMeta.toJson())));
+    }, log: transform.logger);
   }
 }
 
-AssetId _ngMetaAssetId(AssetId primaryInputId) {
+AssetId _ngSummaryAssetId(AssetId primaryInputId) {
   return new AssetId(
-      primaryInputId.package, toMetaExtension(primaryInputId.path));
+      primaryInputId.package, toSummaryExtension(primaryInputId.path));
 }

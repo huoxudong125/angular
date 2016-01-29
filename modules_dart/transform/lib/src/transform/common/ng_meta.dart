@@ -1,6 +1,6 @@
 library angular2.transform.common.ng_meta;
 
-import 'package:angular2/src/core/compiler/directive_metadata.dart';
+import 'package:angular2/src/compiler/directive_metadata.dart';
 import 'logging.dart';
 import 'model/ng_deps_model.pb.dart';
 import 'url_resolver.dart' show isDartCoreUri;
@@ -33,8 +33,9 @@ class NgMeta {
   static const _TYPE_VALUE = 'type';
   static const _VALUE_KEY = 'value';
 
-  /// Directive metadata for each type annotated as a directive.
-  final Map<String, CompileDirectiveMetadata> types;
+  /// Metadata for each type annotated as a directive/pipe.
+  /// Type: [CompileDirectiveMetadata]/[CompilePipeMetadata]
+  final Map<String, dynamic> types;
 
   /// List of other types and names associated with a given name.
   final Map<String, List<String>> aliases;
@@ -43,7 +44,7 @@ class NgMeta {
   final NgDepsModel ngDeps;
 
   NgMeta(
-      {Map<String, CompileDirectiveMetadata> types,
+      {Map<String, dynamic> types,
       Map<String, List<String>> aliases,
       this.ngDeps: null})
       : this.types = types != null ? types : {},
@@ -79,7 +80,7 @@ class NgMeta {
         var ngDepsJsonMap = json[key];
         if (ngDepsJsonMap == null) continue;
         if (ngDepsJsonMap is! Map) {
-          logger.warning(
+          log.warning(
               'Unexpected value $ngDepsJsonMap for key "$key" in NgMeta.');
           continue;
         }
@@ -87,11 +88,11 @@ class NgMeta {
       } else {
         var entry = json[key];
         if (entry is! Map) {
-          logger.warning('Unexpected value $entry for key "$key" in NgMeta.');
+          log.warning('Unexpected value $entry for key "$key" in NgMeta.');
           continue;
         }
         if (entry[_KIND_KEY] == _TYPE_VALUE) {
-          types[key] = CompileDirectiveMetadata.fromJson(entry[_VALUE_KEY]);
+          types[key] = CompileMetadataWithType.fromJson(entry[_VALUE_KEY]);
         } else if (entry[_KIND_KEY] == _ALIAS_VALUE) {
           aliases[key] = entry[_VALUE_KEY];
         }
@@ -101,11 +102,9 @@ class NgMeta {
   }
 
   /// Serialized representation of this instance.
-  Map toJson({bool withNgDeps: true}) {
+  Map toJson() {
     var result = {};
-    if (withNgDeps) {
-      result[_NG_DEPS_KEY] = isNgDepsEmpty ? null : ngDeps.writeToJsonMap();
-    }
+    result[_NG_DEPS_KEY] = isNgDepsEmpty ? null : ngDeps.writeToJsonMap();
 
     types.forEach((k, v) {
       result[k] = {_KIND_KEY: _TYPE_VALUE, _VALUE_KEY: v.toJson()};
@@ -125,12 +124,12 @@ class NgMeta {
   }
 
   /// Returns the metadata for every type associated with the given [alias].
-  List<CompileDirectiveMetadata> flatten(String alias) {
-    var result = <CompileDirectiveMetadata>[];
+  List<dynamic> flatten(String alias) {
+    var result = [];
     var seen = new Set();
     helper(name) {
       if (!seen.add(name)) {
-        logger.warning('Circular alias dependency for "$name".');
+        log.warning('Circular alias dependency for "$name".');
         return;
       }
       if (types.containsKey(name)) {
@@ -138,7 +137,7 @@ class NgMeta {
       } else if (aliases.containsKey(name)) {
         aliases[name].forEach(helper);
       } else {
-        logger.warning('Unknown alias: "$name".');
+        log.warning('Unknown alias: "$name".');
       }
     }
     helper(alias);

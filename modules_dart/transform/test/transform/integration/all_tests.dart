@@ -1,6 +1,6 @@
 library angular2.test.transform.integration;
 
-import 'package:angular2/src/core/dom/html_adapter.dart';
+import 'package:angular2/src/platform/server/html_adapter.dart';
 import 'package:angular2/transformer.dart';
 import 'package:code_transformers/tests.dart';
 import 'package:dart_style/dart_style.dart';
@@ -110,7 +110,7 @@ void allTests() {
       'a|web/bar.ng_deps.dart': 'event_getter_files/expected/bar.ng_deps.dart'
     }),
     new IntegrationTestConfig(
-        'should handle Directive depenedencies declared on a View.',
+        'should handle Directive dependencies declared on a View.',
         inputs: {
       'a|web/index.dart': 'directive_dep_files/index.dart',
       'a|web/foo.dart': 'directive_dep_files/foo.dart',
@@ -130,7 +130,40 @@ void allTests() {
         outputs: {
       'a|web/bar.ng_deps.dart':
           'directive_chain_files/expected/bar.ng_deps.dart'
-    })
+    }),
+    new IntegrationTestConfig(
+        'should handle empty ng_deps files that define directive aliases.',
+        inputs: {
+      'a|web/foo.dart': 'empty_ng_deps_files/foo.dart',
+      'a|web/bar.dart': 'empty_ng_deps_files/bar.dart'
+    },
+        outputs: {
+      'a|web/foo.ng_deps.dart': 'empty_ng_deps_files/expected/foo.ng_deps.dart',
+      'a|web/bar.ng_deps.dart': 'empty_ng_deps_files/expected/bar.ng_deps.dart'
+    }),
+    new IntegrationTestConfig(
+        'should generate setters for annotated properties.',
+        inputs: {
+      'a|web/bar.dart': 'queries_prop_annotation_files/bar.dart'
+    },
+        outputs: {
+      'a|web/bar.ng_deps.dart':
+          'queries_prop_annotation_files/expected/bar.ng_deps.dart'
+    }),
+    new IntegrationTestConfig(
+        'should generate setters for `queries` values in Directives.',
+        inputs: {
+      'a|web/bar.dart': 'queries_class_annotation_files/bar.dart'
+    },
+        outputs: {
+      'a|web/bar.ng_deps.dart':
+          'queries_class_annotation_files/expected/bar.ng_deps.dart'
+    }),
+    new IntegrationTestConfig(
+        'should handle @override annotations in properties on Directives.',
+        inputs: {'a|web/bar.dart': 'override_annotation_files/bar.dart'},
+        outputs:
+            {'a|web/bar.ng_deps.dart': 'override_annotation_files/expected/bar.ng_deps.dart'})
   ];
 
   var cache = {};
@@ -169,6 +202,7 @@ void allTests() {
 void _testDeferredRewriter() {
   var inputs = {
     'a|web/bar.dart': 'deferred_files/bar.dart',
+    'a|web/dep.dart': 'deferred_files/dep.dart',
     'a|web/index.dart': 'deferred_files/index.dart'
   };
   inputs.addAll(commonInputs);
@@ -176,7 +210,7 @@ void _testDeferredRewriter() {
   var outputs = {
     'a|web/bar.ng_deps.dart':
         _readFile('deferred_files/expected/bar.ng_deps.dart'),
-    'a|web/bar.dart': _readFile('deferred_files/expected/bar.dart'),
+    'a|web/bar.dart': deferredOuts.barContents,
     'a|web/index.dart': deferredOuts.indexContents
   };
   testPhases(

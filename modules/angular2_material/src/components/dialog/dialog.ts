@@ -1,5 +1,6 @@
 import {
   bind,
+  provide,
   forwardRef,
   Component,
   ComponentRef,
@@ -8,17 +9,17 @@ import {
   ElementRef,
   Host,
   Injectable,
-  ResolvedBinding,
+  ResolvedProvider,
   SkipSelf,
   Injector,
   View,
   ViewEncapsulation
 } from 'angular2/core';
 
-import {ObservableWrapper, Promise, PromiseWrapper} from 'angular2/src/core/facade/async';
-import {isPresent, Type} from 'angular2/src/core/facade/lang';
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {MouseEvent, KeyboardEvent} from 'angular2/src/core/facade/browser';
+import {ObservableWrapper, Promise, PromiseWrapper} from 'angular2/src/facade/async';
+import {isPresent, Type} from 'angular2/src/facade/lang';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {MouseEvent, KeyboardEvent} from 'angular2/src/facade/browser';
 import {KeyCodes} from 'angular2_material/src/core/key_codes';
 
 // TODO(jelbourn): Opener of dialog can control where it is rendered.
@@ -54,7 +55,7 @@ export class MdDialog {
     // Create the dialogRef here so that it can be injected into the content component.
     var dialogRef = new MdDialogRef();
 
-    var bindings = Injector.resolve([bind(MdDialogRef).toValue(dialogRef)]);
+    var bindings = Injector.resolve([provide(MdDialogRef, {useValue: dialogRef})]);
 
     var backdropRefPromise = this._openBackdrop(elementRef, bindings);
 
@@ -101,7 +102,7 @@ export class MdDialog {
   }
 
   /** Loads the dialog backdrop (transparent overlay over the rest of the page). */
-  _openBackdrop(elementRef: ElementRef, bindings: ResolvedBinding[]): Promise<ComponentRef> {
+  _openBackdrop(elementRef: ElementRef, bindings: ResolvedProvider[]): Promise<ComponentRef> {
     return this.componentLoader.loadNextToLocation(MdBackdrop, elementRef, bindings)
         .then((componentRef) => {
           // TODO(tbosch): clean this up when we have custom renderers

@@ -9,17 +9,17 @@ import {
   inject,
   it,
   xit,
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
-import {ListWrapper} from 'angular2/src/core/facade/collection';
-import {PromiseWrapper, Promise} from 'angular2/src/core/facade/async';
+import {ListWrapper} from 'angular2/src/facade/collection';
+import {PromiseWrapper, Promise} from 'angular2/src/facade/async';
 
-import {Metric, MultiMetric, bind, Injector} from 'benchpress/common';
+import {Metric, MultiMetric, bind, provide, Injector} from 'benchpress/common';
 
 export function main() {
   function createMetric(ids: any[]) {
     var m = Injector.resolveAndCreate([
-                      ids.map(id => bind(id).toValue(new MockMetric(id))),
+                      ids.map(id => provide(id, {useValue: new MockMetric(id)})),
                       MultiMetric.createBindings(ids)
                     ])
                 .get(MultiMetric);

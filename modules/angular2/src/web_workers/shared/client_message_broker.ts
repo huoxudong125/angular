@@ -1,44 +1,57 @@
-/// <reference path="../../../manual_typings/globals.d.ts" />
 import {MessageBus} from "angular2/src/web_workers/shared/message_bus";
-import {print, isPresent, DateWrapper, stringify} from "angular2/src/core/facade/lang";
+import {print, isPresent, DateWrapper, stringify} from "angular2/src/facade/lang";
 import {
   Promise,
   PromiseCompleter,
   PromiseWrapper,
   ObservableWrapper,
   EventEmitter
-} from "angular2/src/core/facade/async";
-import {StringMapWrapper, MapWrapper} from "angular2/src/core/facade/collection";
+} from "angular2/src/facade/async";
+import {StringMapWrapper, MapWrapper} from "angular2/src/facade/collection";
 import {Serializer} from "angular2/src/web_workers/shared/serializer";
 import {Injectable} from "angular2/src/core/di";
-import {Type, StringWrapper} from "angular2/src/core/facade/lang";
-export {Type} from "angular2/src/core/facade/lang";
+import {Type, StringWrapper} from "angular2/src/facade/lang";
+export {Type} from "angular2/src/facade/lang";
+
+export abstract class ClientMessageBrokerFactory {
+  /**
+   * Initializes the given channel and attaches a new {@link ClientMessageBroker} to it.
+   */
+  abstract createMessageBroker(channel: string, runInZone?: boolean): ClientMessageBroker;
+}
 
 @Injectable()
-export class ClientMessageBrokerFactory {
-  /**
-   * @internal
-   */
-  constructor(private _messageBus: MessageBus, public _serializer: Serializer) {}
+export class ClientMessageBrokerFactory_ extends ClientMessageBrokerFactory {
+  /** @internal */
+  public _serializer: Serializer;
+  constructor(private _messageBus: MessageBus, _serializer: Serializer) {
+    super();
+    this._serializer = _serializer;
+  }
 
   /**
    * Initializes the given channel and attaches a new {@link ClientMessageBroker} to it.
    */
   createMessageBroker(channel: string, runInZone: boolean = true): ClientMessageBroker {
     this._messageBus.initChannel(channel, runInZone);
-    return new ClientMessageBroker(this._messageBus, this._serializer, channel);
+    return new ClientMessageBroker_(this._messageBus, this._serializer, channel);
   }
 }
 
-export class ClientMessageBroker {
-  private _pending: Map<string, PromiseCompleter<any>> = new Map<string, PromiseCompleter<any>>();
-  private _sink: EventEmitter;
+export abstract class ClientMessageBroker {
+  abstract runOnService(args: UiArguments, returnType: Type): Promise<any>;
+}
 
-  /**
-   * @internal
-   */
-  constructor(messageBus: MessageBus, public _serializer: Serializer, public channel) {
+export class ClientMessageBroker_ extends ClientMessageBroker {
+  private _pending: Map<string, PromiseCompleter<any>> = new Map<string, PromiseCompleter<any>>();
+  private _sink: EventEmitter<any>;
+  /** @internal */
+  public _serializer: Serializer;
+
+  constructor(messageBus: MessageBus, _serializer: Serializer, public channel) {
+    super();
     this._sink = messageBus.to(channel);
+    this._serializer = _serializer;
     var source = messageBus.from(channel);
     ObservableWrapper.subscribe(source,
                                 (message: {[key: string]: any}) => this._handleMessage(message));
@@ -94,7 +107,7 @@ export class ClientMessageBroker {
     if (id != null) {
       message['id'] = id;
     }
-    ObservableWrapper.callNext(this._sink, message);
+    ObservableWrapper.callEmit(this._sink, message);
 
     return promise;
   }
@@ -129,6 +142,7 @@ class MessageData {
 
   /**
    * Returns the value from the StringMap if present. Otherwise returns null
+   * @internal
    */
   _getValueIfPresent(data: {[key: string]: any}, key: string) {
     if (StringMapWrapper.contains(data, key)) {

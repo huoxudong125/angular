@@ -2,20 +2,22 @@ library angular2.test.transform.directive_processor.all_tests;
 
 import 'dart:async';
 
-import 'package:angular2/src/core/change_detection/change_detection.dart';
-import 'package:angular2/src/core/linker/interfaces.dart' show LifecycleHooks;
-import 'package:angular2/src/core/dom/html_adapter.dart';
-import 'package:angular2/src/transform/directive_processor/rewriter.dart';
-import 'package:angular2/src/transform/common/annotation_matcher.dart';
-import 'package:angular2/src/transform/common/code/ng_deps_code.dart';
-import 'package:angular2/src/transform/common/asset_reader.dart';
-import 'package:angular2/src/transform/common/logging.dart' as log;
-import 'package:angular2/src/transform/common/model/reflection_info_model.pb.dart';
-import 'package:angular2/src/transform/common/ng_meta.dart';
 import 'package:barback/barback.dart';
-import 'package:code_transformers/messages/build_logger.dart';
 import 'package:dart_style/dart_style.dart';
 import 'package:guinness/guinness.dart';
+
+import 'package:angular2/src/core/change_detection/change_detection.dart';
+import 'package:angular2/src/platform/server/html_adapter.dart';
+import 'package:angular2/src/core/linker/interfaces.dart' show LifecycleHooks;
+import 'package:angular2/src/transform/common/annotation_matcher.dart';
+import 'package:angular2/src/transform/common/asset_reader.dart';
+import 'package:angular2/src/transform/common/code/ng_deps_code.dart';
+import 'package:angular2/src/transform/common/model/ng_deps_model.pb.dart';
+import 'package:angular2/src/transform/common/model/reflection_info_model.pb.dart';
+import 'package:angular2/src/transform/common/ng_meta.dart';
+import 'package:angular2/src/transform/common/zone.dart' as zone;
+import 'package:angular2/src/transform/directive_processor/rewriter.dart';
+
 import '../common/read_file.dart';
 import '../common/recording_logger.dart';
 
@@ -420,6 +422,209 @@ void allTests() {
       expect(ngMeta.types['HelloCmp'].template.templateUrl)
           .toEqual('asset:other_package/lib/template.html');
     });
+
+    it('should handle prefixed annotations', () async {
+      var model =
+          (await _testCreateModel('prefixed_annotations_files/soup.dart'))
+              .ngDeps;
+
+      expect(model.reflectables.isEmpty).toBeFalse();
+      final annotations = model.reflectables.first.annotations;
+      final viewAnnotation =
+          annotations.firstWhere((m) => m.isView, orElse: () => null);
+      final componentAnnotation =
+          annotations.firstWhere((m) => m.isComponent, orElse: () => null);
+      expect(viewAnnotation).toBeNotNull();
+      expect(viewAnnotation.namedParameters.first.name).toEqual('template');
+      expect(viewAnnotation.namedParameters.first.value).toContain('SoupView');
+      expect(componentAnnotation).toBeNotNull();
+      expect(componentAnnotation.namedParameters.first.name)
+          .toEqual('selector');
+      expect(componentAnnotation.namedParameters.first.value)
+          .toContain('[soup]');
+    });
+  });
+
+  describe('directives', () {
+    final reflectableNamed = (NgDepsModel model, String name) {
+      return model.reflectables
+          .firstWhere((r) => r.name == name, orElse: () => null);
+    };
+
+    it('should populate `directives` from @View value specified second.',
+        () async {
+      var model =
+          (await _testCreateModel('directives_files/components.dart')).ngDeps;
+      final componentFirst = reflectableNamed(model, 'ComponentFirst');
+      expect(componentFirst).toBeNotNull();
+      expect(componentFirst.directives).toBeNotNull();
+      expect(componentFirst.directives.length).toEqual(2);
+      expect(componentFirst.directives.first)
+          .toEqual(new PrefixedType()..name = 'Dep');
+      expect(componentFirst.directives[1]).toEqual(new PrefixedType()
+        ..name = 'Dep'
+        ..prefix = 'dep2');
+    });
+
+    it('should populate `directives` from @View value specified first.',
+        () async {
+      var model =
+          (await _testCreateModel('directives_files/components.dart')).ngDeps;
+      final viewFirst = reflectableNamed(model, 'ViewFirst');
+      expect(viewFirst).toBeNotNull();
+      expect(viewFirst.directives).toBeNotNull();
+      expect(viewFirst.directives.length).toEqual(2);
+      expect(viewFirst.directives.first).toEqual(new PrefixedType()
+        ..name = 'Dep'
+        ..prefix = 'dep2');
+      expect(viewFirst.directives[1]).toEqual(new PrefixedType()..name = 'Dep');
+    });
+
+    it('should populate `directives` from @Component value with no @View.',
+        () async {
+      var model =
+          (await _testCreateModel('directives_files/components.dart')).ngDeps;
+      final componentOnly = reflectableNamed(model, 'ComponentOnly');
+      expect(componentOnly).toBeNotNull();
+      expect(componentOnly.directives).toBeNotNull();
+      expect(componentOnly.directives.length).toEqual(2);
+      expect(componentOnly.directives.first)
+          .toEqual(new PrefixedType()..name = 'Dep');
+      expect(componentOnly.directives[1]).toEqual(new PrefixedType()
+        ..name = 'Dep'
+        ..prefix = 'dep2');
+    });
+
+    it('should populate `pipes` from @View value specified second.', () async {
+      var model =
+          (await _testCreateModel('directives_files/components.dart')).ngDeps;
+      final componentFirst = reflectableNamed(model, 'ComponentFirst');
+      expect(componentFirst).toBeNotNull();
+      expect(componentFirst.pipes).toBeNotNull();
+      expect(componentFirst.pipes.length).toEqual(2);
+      expect(componentFirst.pipes.first)
+          .toEqual(new PrefixedType()..name = 'PipeDep');
+      expect(componentFirst.pipes[1]).toEqual(new PrefixedType()
+        ..name = 'PipeDep'
+        ..prefix = 'dep2');
+    });
+
+    it('should populate `pipes` from @View value specified first.', () async {
+      var model =
+          (await _testCreateModel('directives_files/components.dart')).ngDeps;
+      final viewFirst = reflectableNamed(model, 'ViewFirst');
+      expect(viewFirst).toBeNotNull();
+      expect(viewFirst.pipes).toBeNotNull();
+      expect(viewFirst.pipes.length).toEqual(2);
+      expect(viewFirst.pipes.first).toEqual(new PrefixedType()
+        ..name = 'PipeDep'
+        ..prefix = 'dep2');
+      expect(viewFirst.pipes[1]).toEqual(new PrefixedType()..name = 'PipeDep');
+    });
+
+    it('should populate `pipes` from @Component value with no @View.',
+        () async {
+      var model =
+          (await _testCreateModel('directives_files/components.dart')).ngDeps;
+      final componentOnly = reflectableNamed(model, 'ComponentOnly');
+      expect(componentOnly).toBeNotNull();
+      expect(componentOnly.pipes).toBeNotNull();
+      expect(componentOnly.pipes.length).toEqual(2);
+      expect(componentOnly.pipes.first)
+          .toEqual(new PrefixedType()..name = 'PipeDep');
+      expect(componentOnly.pipes[1]).toEqual(new PrefixedType()
+        ..name = 'PipeDep'
+        ..prefix = 'dep2');
+    });
+
+    it('should merge `outputs` from the annotation and fields.', () async {
+      var model = await _testCreateModel('directives_files/components.dart');
+      expect(model.types['ComponentWithOutputs'].outputs).toEqual(
+          {'a': 'a', 'b': 'b', 'c': 'renamed', 'd': 'd', 'e': 'get-renamed'});
+    });
+
+    it('should merge `inputs` from the annotation and fields.', () async {
+      var model = await _testCreateModel('directives_files/components.dart');
+      expect(model.types['ComponentWithInputs'].inputs).toEqual(
+          {'a': 'a', 'b': 'b', 'c': 'renamed', 'd': 'd', 'e': 'set-renamed'});
+    });
+
+    it('should merge host bindings from the annotation and fields.', () async {
+      var model = await _testCreateModel('directives_files/components.dart');
+      expect(model.types['ComponentWithHostBindings'].hostProperties)
+          .toEqual({'a': 'a', 'b': 'b', 'renamed': 'c', 'd': 'd', 'get-renamed': 'e'});
+    });
+
+    it('should merge host listeners from the annotation and fields.', () async {
+      var model = await _testCreateModel('directives_files/components.dart');
+      expect(model.types['ComponentWithHostListeners'].hostListeners).toEqual({
+        'a': 'onA()',
+        'b': 'onB()',
+        'c': 'onC(\$event.target,\$event.target.value)'
+      });
+    });
+
+    it('should warn if @Component has a `template` and @View is present.',
+        () async {
+      final logger = new RecordingLogger();
+      final model = await _testCreateModel('bad_directives_files/template.dart',
+          logger: logger);
+      var warning =
+          logger.logs.firstWhere((l) => l.contains('WARN'), orElse: () => null);
+      expect(warning).toBeNotNull();
+      expect(warning.toLowerCase())
+          .toContain('cannot specify view parameters on @component');
+    });
+
+    it('should warn if @Component has a `templateUrl` and @View is present.',
+        () async {
+      final logger = new RecordingLogger();
+      final model = await _testCreateModel(
+          'bad_directives_files/template_url.dart',
+          logger: logger);
+      var warning =
+          logger.logs.firstWhere((l) => l.contains('WARN'), orElse: () => null);
+      expect(warning).toBeNotNull();
+      expect(warning.toLowerCase())
+          .toContain('cannot specify view parameters on @component');
+    });
+
+    it('should warn if @Component has `directives` and @View is present.',
+        () async {
+      final logger = new RecordingLogger();
+      final model = await _testCreateModel(
+          'bad_directives_files/directives.dart',
+          logger: logger);
+      var warning =
+          logger.logs.firstWhere((l) => l.contains('WARN'), orElse: () => null);
+      expect(warning).toBeNotNull();
+      expect(warning.toLowerCase())
+          .toContain('cannot specify view parameters on @component');
+    });
+
+    it('should warn if @Component has `pipes` and @View is present.', () async {
+      final logger = new RecordingLogger();
+      final model = await _testCreateModel('bad_directives_files/pipes.dart',
+          logger: logger);
+      var warning =
+          logger.logs.firstWhere((l) => l.contains('WARN'), orElse: () => null);
+      expect(warning).toBeNotNull();
+      expect(warning.toLowerCase())
+          .toContain('cannot specify view parameters on @component');
+    });
+  });
+
+  describe('pipes', () {
+    it('should read the pipe name', () async {
+      var model = await _testCreateModel('pipe_files/pipes.dart');
+      expect(model.types['NameOnlyPipe'].name).toEqual('nameOnly');
+      expect(model.types['NameOnlyPipe'].pure).toBe(false);
+    });
+
+    it('should read the pure flag', () async {
+      var model = await _testCreateModel('pipe_files/pipes.dart');
+      expect(model.types['NameAndPurePipe'].pure).toBe(true);
+    });
   });
 }
 
@@ -427,9 +632,9 @@ Future<NgMeta> _testCreateModel(String inputPath,
     {List<AnnotationDescriptor> customDescriptors: const [],
     AssetId assetId,
     AssetReader reader,
-    BuildLogger logger}) {
+    TransformLogger logger}) {
   if (logger == null) logger = new RecordingLogger();
-  return log.setZoned(logger, () async {
+  return zone.exec(() async {
     var inputId = _assetIdForPath(inputPath);
     if (reader == null) {
       reader = new TestAssetReader();
@@ -441,7 +646,7 @@ Future<NgMeta> _testCreateModel(String inputPath,
 
     var annotationMatcher = new AnnotationMatcher()..addAll(customDescriptors);
     return createNgMeta(reader, inputId, annotationMatcher);
-  });
+  }, log: logger);
 }
 
 AssetId _assetIdForPath(String path) =>

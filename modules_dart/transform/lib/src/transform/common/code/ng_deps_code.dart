@@ -12,20 +12,23 @@ import 'annotation_code.dart';
 import 'import_export_code.dart';
 import 'reflection_info_code.dart';
 import 'parameter_code.dart';
+import 'queries_code.dart';
 
 /// Visitor responsible for parsing source Dart files (that is, not
 /// `.ng_deps.dart` files) into [NgDepsModel] objects.
 class NgDepsVisitor extends RecursiveAstVisitor<Object> {
   final AssetId processedFile;
-  final ImportVisitor _importVisitor = new ImportVisitor();
-  final ExportVisitor _exportVisitor = new ExportVisitor();
+  final _importVisitor = new ImportVisitor();
+  final _exportVisitor = new ExportVisitor();
   final ReflectionInfoVisitor _reflectableVisitor;
+  final QueriesVisitor _queriesVisitor;
 
   bool _isPart = false;
   NgDepsModel _model = null;
 
   NgDepsVisitor(AssetId processedFile, AnnotationMatcher annotationMatcher)
       : this.processedFile = processedFile,
+        _queriesVisitor = new QueriesVisitor(processedFile, annotationMatcher),
         _reflectableVisitor =
             new ReflectionInfoVisitor(processedFile, annotationMatcher);
 
@@ -48,6 +51,14 @@ class NgDepsVisitor extends RecursiveAstVisitor<Object> {
     var reflectableModel = _reflectableVisitor.visitClassDeclaration(node);
     if (reflectableModel != null) {
       model.reflectables.add(reflectableModel);
+      var queryFields = _queriesVisitor.visitClassDeclaration(node);
+      if (queryFields != null) {
+        for (var queryField in queryFields) {
+          if (!model.setters.contains(queryField)) {
+            model.setters.add(queryField);
+          }
+        }
+      }
     }
     return null;
   }
@@ -146,6 +157,7 @@ abstract class NgDepsWriterMixin
     // deferred. Instead `DeferredRewriter` will rewrite the code as to load
     // `ng_deps` in a deferred way.
     model.imports.where((i) => !i.isDeferred).forEach(writeImportModel);
+    model.depImports.where((i) => !i.isDeferred).forEach(writeImportModel);
 
     writeExportModel(new ExportModel()..uri = model.sourceFile);
     model.exports.forEach(writeExportModel);
@@ -155,17 +167,45 @@ abstract class NgDepsWriterMixin
       ..writeln('void ${SETUP_METHOD_NAME}() {')
       ..writeln('if (_visited) return; _visited = true;');
 
-    if (model.reflectables != null && model.reflectables.isNotEmpty) {
+    final needsReceiver = (model.reflectables != null &&
+            model.reflectables.isNotEmpty) ||
+        (model.getters != null && model.getters.isNotEmpty) ||
+        (model.setters != null && model.setters.isNotEmpty) ||
+        (model.methods != null && model.methods.isNotEmpty);
+
+    if (needsReceiver) {
       buffer.writeln('$REFLECTOR_PREFIX.$REFLECTOR_VAR_NAME');
+    }
+
+    if (model.reflectables != null && model.reflectables.isNotEmpty) {
       model.reflectables.forEach(writeRegistration);
+    }
+
+    if (model.getters != null && model.getters.isNotEmpty) {
+      buffer.writeln('..registerGetters({'
+          '${model.getters.map((g) => "'$g': (o) => o.$g").join(', ')}'
+          '})');
+    }
+
+    if (model.setters != null && model.setters.isNotEmpty) {
+      buffer.writeln('..registerSetters({'
+          '${model.setters.map((g) => "'$g': (o, v) => o.$g = v").join(', ')}'
+          '})');
+    }
+
+    if (model.methods != null && model.methods.isNotEmpty) {
+      buffer.writeln('..registerMethods({'
+          '${model.methods.map((g) => "'$g': (o, args) => o.$g.apply(args)").join(', ')}'
+          '})');
+    }
+
+    if (needsReceiver) {
       buffer.writeln(';');
     }
 
-    // Call the setup method for our imports that are `.ng_deps` imports.
-    for (var importModel in model.imports) {
-      if (importModel.isNgDeps) {
-        buffer.writeln('${importModel.prefix}.${SETUP_METHOD_NAME}();');
-      }
+    // Call the setup method for our dependencies.
+    for (var importModel in model.depImports) {
+      buffer.writeln('${importModel.prefix}.${SETUP_METHOD_NAME}();');
     }
 
     buffer.writeln('}');

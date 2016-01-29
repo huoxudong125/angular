@@ -2,139 +2,104 @@ library angular2.transform.template_compiler.generator;
 
 import 'dart:async';
 
-import 'package:analyzer/analyzer.dart';
-import 'package:angular2/src/core/compiler/source_module.dart';
-import 'package:angular2/src/core/compiler/template_compiler.dart';
+import 'package:barback/barback.dart';
+import 'package:path/path.dart' as path;
+
 import 'package:angular2/src/core/change_detection/interfaces.dart';
-import 'package:angular2/src/core/facade/lang.dart';
+import 'package:angular2/src/facade/lang.dart';
 import 'package:angular2/src/core/reflection/reflection.dart';
 import 'package:angular2/src/transform/common/asset_reader.dart';
 import 'package:angular2/src/transform/common/code/source_module.dart';
 import 'package:angular2/src/transform/common/logging.dart';
+import 'package:angular2/src/transform/common/model/annotation_model.pb.dart';
+import 'package:angular2/src/transform/common/model/import_export_model.pb.dart';
+import 'package:angular2/src/transform/common/model/ng_deps_model.pb.dart';
 import 'package:angular2/src/transform/common/names.dart';
 import 'package:angular2/src/transform/common/ng_compiler.dart';
-import 'package:angular2/src/transform/common/ng_deps.dart';
-import 'package:barback/barback.dart';
-import 'package:path/path.dart' as path;
+import 'package:angular2/src/transform/common/zone.dart' as zone;
 
-import 'reflection/codegen.dart' as reg;
 import 'reflection/processor.dart' as reg;
 import 'reflection/reflection_capabilities.dart';
 import 'compile_data_creator.dart';
 
-/// Reads the `.ng_deps.dart` file represented by `assetId` and parses any
-/// Angular 2 `View` annotations it declares to generate `getter`s,
-/// `setter`s, and `method`s that would otherwise be reflectively accessed.
+/// Generates `.ng_deps.dart` files to initialize the Angular2 system.
+///
+/// Processes the `.ng_summary.json` file represented by `assetId`
+/// `createCompileData`.
+/// Uses the resulting `NgMeta` object to generate
+/// `getter`s, `setter`s, and `method`s that would otherwise need to be
+/// reflectively accessed.
+/// Passes the resulting `NormalizedComponentWithViewDirectives` instances
+/// to the `TemplateCompiler` to generate compiled template(s).
+/// Uses the resulting `NgDeps` object to generate a .ng_deps.dart file which
+/// initializes the Angular2 reflective system.
 ///
 /// This method assumes a {@link DomAdapter} has been registered.
 Future<Outputs> processTemplates(AssetReader reader, AssetId assetId,
-    {bool reflectPropertiesAsAttributes: false}) async {
-  var viewDefResults = await createCompileData(reader, assetId);
-  var codegen = null;
-  if (viewDefResults.directiveMetadatas.isNotEmpty) {
+    {bool genChangeDetectionDebugInfo: false,
+    bool reflectPropertiesAsAttributes: false,
+    List<String> platformDirectives,
+    List<String> platformPipes}) async {
+  var viewDefResults = await createCompileData(
+      reader, assetId, platformDirectives, platformPipes);
+  if (viewDefResults == null) return null;
+  final compileTypeMetadatas = viewDefResults.ngMeta.types.values;
+  if (compileTypeMetadatas.isNotEmpty) {
     var processor = new reg.Processor();
-    viewDefResults.directiveMetadatas.forEach(processor.process);
-    codegen = new reg.Codegen();
-    codegen.generate(processor);
+    compileTypeMetadatas.forEach(processor.process);
+    viewDefResults.ngMeta.ngDeps.getters
+        .addAll(processor.getterNames.map((e) => e.sanitizedName));
+    viewDefResults.ngMeta.ngDeps.setters
+        .addAll(processor.setterNames.map((e) => e.sanitizedName));
+    viewDefResults.ngMeta.ngDeps.methods
+        .addAll(processor.methodNames.map((e) => e.sanitizedName));
   }
-  var templateCompiler = createTemplateCompiler(reader,
-      changeDetectionConfig: new ChangeDetectorGenConfig(assertionsEnabled(),
-          assertionsEnabled(), reflectPropertiesAsAttributes, false));
+  var templateCompiler = zone.templateCompiler;
+  if (templateCompiler == null) {
+    templateCompiler = createTemplateCompiler(reader,
+        changeDetectionConfig: new ChangeDetectorGenConfig(
+            genChangeDetectionDebugInfo, reflectPropertiesAsAttributes, false));
+  }
 
-  var ngDeps = viewDefResults.ngDeps;
-  var compileData =
+  final compileData =
       viewDefResults.viewDefinitions.values.toList(growable: false);
   if (compileData.isEmpty) {
-    return new Outputs(assetId, ngDeps, codegen, null, null);
+    return new Outputs._(viewDefResults.ngMeta.ngDeps, null);
   }
 
   var savedReflectionCapabilities = reflector.reflectionCapabilities;
   reflector.reflectionCapabilities = const NullReflectionCapabilities();
-  final compiledTemplates = await logElapsedAsync(() async {
+  // Since we need global state to remain consistent here, make sure not to do
+  // any asynchronous operations here.
+  final compiledTemplates = logElapsedSync(() {
     return templateCompiler.compileTemplatesCodeGen(compileData);
   }, operationName: 'compileTemplatesCodegen', assetId: assetId);
   reflector.reflectionCapabilities = savedReflectionCapabilities;
 
-  return new Outputs(assetId, ngDeps, codegen, viewDefResults.viewDefinitions,
-      compiledTemplates);
+  if (compiledTemplates != null) {
+    viewDefResults.ngMeta.ngDeps.imports.add(new ImportModel()
+      ..uri = toTemplateExtension(path.basename(assetId.path))
+      ..prefix = '_templates');
+    for (var reflectable in viewDefResults.viewDefinitions.keys) {
+      reflectable.annotations.add(new AnnotationModel()
+        ..name = '_templates.hostViewFactory_${reflectable.name}'
+        ..isConstObject = true);
+    }
+  }
+
+  return new Outputs._(
+      viewDefResults.ngMeta.ngDeps, writeSourceModule(compiledTemplates));
 }
 
-AssetId templatesAssetId(AssetId ngDepsAssetId) =>
-    new AssetId(ngDepsAssetId.package, toTemplateExtension(ngDepsAssetId.path));
+AssetId ngDepsAssetId(AssetId primaryId) =>
+    new AssetId(primaryId.package, toDepsExtension(primaryId.path));
+
+AssetId templatesAssetId(AssetId primaryId) =>
+    new AssetId(primaryId.package, toTemplateExtension(primaryId.path));
 
 class Outputs {
-  final String ngDepsCode;
+  final NgDepsModel ngDeps;
   final String templatesCode;
 
-  Outputs._(this.ngDepsCode, this.templatesCode);
-
-  factory Outputs(
-      AssetId assetId,
-      NgDeps ngDeps,
-      reg.Codegen accessors,
-      Map<RegisteredType, NormalizedComponentWithViewDirectives> compileDataMap,
-      SourceModule templatesSource) {
-    return new Outputs._(
-        _generateNgDepsCode(assetId, ngDeps, accessors, compileDataMap),
-        writeSourceModule(templatesSource));
-  }
-
-  // Updates the NgDeps code with an additional `CompiledTemplate` annotation
-  // for each Directive we generated one for.
-  //
-  // Also adds an import to the `.template.dart` file that we will generate.
-  static String _generateNgDepsCode(
-      AssetId id,
-      NgDeps ngDeps,
-      reg.Codegen accessors,
-      Map<RegisteredType,
-          NormalizedComponentWithViewDirectives> compileDataMap) {
-    var code = ngDeps.code;
-    if (accessors == null &&
-        (compileDataMap == null || compileDataMap.isEmpty)) return code;
-
-    if (ngDeps.registeredTypes.isEmpty) return code;
-    var beginRegistrationsIdx =
-        ngDeps.registeredTypes.first.registerMethod.offset;
-    var endRegistratationsIdx = ngDeps.registeredTypes.last.registerMethod.end;
-    var importInjectIdx = ngDeps.lib != null ? ngDeps.lib.end : 0;
-
-    // Add everything up to the point where we begin registering classes with
-    // the reflector, injecting an import to the generated template code.
-    var buf;
-    if (compileDataMap != null) {
-      buf = new StringBuffer('${code.substring(0, importInjectIdx)}'
-          'import \'${toTemplateExtension(path.basename(id.path))}\' as _templates;'
-          '${code.substring(importInjectIdx, beginRegistrationsIdx)}');
-    } else {
-      buf = new StringBuffer('${code.substring(0, beginRegistrationsIdx)}');
-    }
-    for (var registeredType in ngDeps.registeredTypes) {
-      if (compileDataMap != null &&
-          compileDataMap.containsKey(registeredType)) {
-        // We generated a template for this type, so add the generated
-        // `CompiledTemplate` value as the final annotation in the list.
-        var annotations = registeredType.annotations as ListLiteral;
-        if (annotations.length == 0) {
-          throw new FormatException('Unexpected format - attempting to codegen '
-              'a class with no Component annotation ${registeredType.typeName}');
-        }
-        buf.write(code.substring(registeredType.registerMethod.offset,
-            annotations.elements.last.end));
-        buf.write(', _templates.Host${registeredType.typeName}Template]');
-        buf.writeln(code.substring(
-            registeredType.annotations.end, registeredType.registerMethod.end));
-      } else {
-        // There is no compiled template for this type, write it out without any
-        // changes.
-        buf.writeln(code.substring(registeredType.registerMethod.offset,
-            registeredType.registerMethod.end));
-      }
-    }
-    buf.writeln(accessors.toString());
-
-    // Add everything after the final registration.
-    buf.writeln(code.substring(endRegistratationsIdx));
-    return buf.toString();
-  }
+  Outputs._(this.ngDeps, this.templatesCode);
 }

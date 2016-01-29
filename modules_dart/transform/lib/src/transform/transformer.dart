@@ -3,16 +3,17 @@ library angular2.src.transform.transformer;
 import 'package:barback/barback.dart';
 import 'package:dart_style/dart_style.dart';
 
-import 'deferred_rewriter/transformer.dart';
-import 'directive_metadata_linker/transformer.dart';
-import 'directive_processor/transformer.dart';
-import 'bind_generator/transformer.dart';
-import 'reflection_remover/transformer.dart';
-import 'stylesheet_compiler/transformer.dart';
-import 'template_compiler/transformer.dart';
+import 'common/eager_transformer_wrapper.dart';
 import 'common/formatter.dart' as formatter;
 import 'common/options.dart';
 import 'common/options_reader.dart';
+import 'deferred_rewriter/transformer.dart';
+import 'directive_metadata_linker/transformer.dart';
+import 'directive_processor/transformer.dart';
+import 'inliner_for_test/transformer.dart';
+import 'reflection_remover/transformer.dart';
+import 'stylesheet_compiler/transformer.dart';
+import 'template_compiler/transformer.dart';
 
 export 'common/options.dart';
 
@@ -25,17 +26,27 @@ class AngularTransformerGroup extends TransformerGroup {
   }
 
   factory AngularTransformerGroup(TransformerOptions options) {
-    var phases = [
-      [new ReflectionRemover(options)],
-      [new DirectiveProcessor(options)]
-    ];
-    phases.addAll([
-      [new DirectiveMetadataLinker()],
-      [new BindGenerator(options)],
-      [new TemplateCompiler(options)],
-      [new StylesheetCompiler()],
-      [new DeferredRewriter(options)]
-    ]);
+    var phases;
+    if (options.inlineViews) {
+      phases = [
+        [new InlinerForTest(options)]
+      ];
+    } else {
+      phases = [
+        [new DirectiveProcessor(options)],
+        [new DirectiveMetadataLinker()],
+        [new ReflectionRemover(options)],
+        [
+          new DeferredRewriter(options),
+          new StylesheetCompiler(),
+          new TemplateCompiler(options)
+        ],
+      ];
+    }
+    if (options.modeName == BarbackMode.RELEASE || !options.lazyTransformers) {
+      phases = phases
+          .map((phase) => phase.map((t) => new EagerTransformerWrapper(t)));
+    }
     return new AngularTransformerGroup._(phases,
         formatCode: options.formatCode);
   }

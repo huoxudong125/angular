@@ -13,7 +13,8 @@ import 'package:angular2/src/core/change_detection/event_binding.dart';
 import 'package:angular2/src/core/change_detection/binding_record.dart';
 import 'package:angular2/src/core/change_detection/codegen_facade.dart'
     show codify;
-import 'package:angular2/src/core/facade/exceptions.dart' show BaseException;
+import 'package:angular2/src/facade/exceptions.dart' show BaseException;
+import 'package:angular2/src/facade/collection.dart' show ListWrapper;
 
 /// Responsible for generating change detector classes for Angular 2.
 ///
@@ -90,6 +91,7 @@ class _CodegenState {
   final CodegenNameUtil _names;
   final ChangeDetectorGenConfig _genConfig;
   final List<BindingTarget> _propertyBindingTargets;
+  final List<int> _endOfBlockIdxs = [];
 
   String get _changeDetectionStrategyAsCode => _changeDetectionStrategy == null
       ? 'null'
@@ -121,7 +123,8 @@ class _CodegenState {
 
     var names = new CodegenNameUtil(
         protoRecords, eventBindings, def.directiveRecords, '$genPrefix$_UTIL');
-    var logic = new CodegenLogicUtil(names, '$genPrefix$_UTIL', def.strategy);
+    var logic = new CodegenLogicUtil(
+        names, '$genPrefix$_UTIL', '$genPrefix$_STATE', def.strategy);
     return new _CodegenState._(
         genPrefix,
         def.id,
@@ -142,9 +145,9 @@ class _CodegenState {
       class $_changeDetectorTypeName extends ${_genPrefix}$_BASE_CLASS<$_contextTypeName> {
         ${_genDeclareFields()}
 
-        $_changeDetectorTypeName(dispatcher)
+        $_changeDetectorTypeName()
           : super(${codify(_changeDetectorDefId)},
-              dispatcher, ${_records.length},
+              ${_records.length},
               ${_changeDetectorTypeName}.${_GEN_PROPERTY_BINDING_TARGETS_NAME},
               ${_changeDetectorTypeName}.${_GEN_DIRECTIVE_INDICES_NAME},
               ${_changeDetectionStrategyAsCode}) {
@@ -156,12 +159,10 @@ class _CodegenState {
           var $_IS_CHANGED_LOCAL = false;
           var $_CHANGES_LOCAL = null;
 
-          ${_records.map(_genRecord).join('')}
+          ${_genAllRecords()}
         }
 
         ${_maybeGenHandleEventInternal()}
-
-        ${_genCheckNoChanges()}
 
         ${_maybeGenAfterContentLifecycleCallbacks()}
 
@@ -175,15 +176,21 @@ class _CodegenState {
 
         ${_genDirectiveIndices()};
 
-        static ${_genPrefix}ProtoChangeDetector
-            $PROTO_CHANGE_DETECTOR_FACTORY_METHOD(
-            ${_genPrefix}ChangeDetectorDefinition def) {
-          return new ${_genPrefix}PregenProtoChangeDetector(
-              (a) => new $_changeDetectorTypeName(a),
-              def);
+        static ${_genPrefix}ChangeDetector
+            $CHANGE_DETECTOR_FACTORY_METHOD() {
+          return new $_changeDetectorTypeName();
         }
       }
     ''');
+  }
+
+  String _genAllRecords() {
+    _endOfBlockIdxs.clear();
+    List<String> res = [];
+    for (int i = 0; i < _records.length; i++) {
+      res.add(_genRecord(_records[i], i));
+    }
+    return res.join('');
   }
 
   String _genPropertyBindingTargets() {
@@ -215,10 +222,29 @@ class _CodegenState {
   }
 
   String _genEventBinding(EventBinding eb) {
-    var recs = eb.records.map((r) => _genEventBindingEval(eb, r)).join("\n");
+    List<String> codes = [];
+    _endOfBlockIdxs.clear();
+
+    ListWrapper.forEachWithIndex(eb.records, (_, i) {
+      var code;
+      var r = eb.records[i];
+
+      if (r.isConditionalSkipRecord()) {
+        code = _genConditionalSkip(r, _names.getEventLocalName(eb, i));
+      } else if (r.isUnconditionalSkipRecord()) {
+        code = _genUnconditionalSkip(r);
+      } else {
+        code = _genEventBindingEval(eb, r);
+      }
+
+      code += this._genEndOfSkipBlock(i);
+
+      codes.add(code);
+    });
+
     return '''
     if (eventName == "${eb.eventName}" && elIndex == ${eb.elIndex}) {
-    ${recs}
+    ${codes.join("\n")}
     }''';
   }
 
@@ -257,13 +283,19 @@ class _CodegenState {
   String _maybeGenDehydrateDirectives() {
     var destroyPipesParamName = 'destroyPipes';
     var destroyPipesCode = _names.genPipeOnDestroy();
-    if (destroyPipesCode.isNotEmpty) {
-      destroyPipesCode = 'if (${destroyPipesParamName}) {${destroyPipesCode}}';
-    }
     var dehydrateFieldsCode = _names.genDehydrateFields();
-    if (destroyPipesCode.isEmpty && dehydrateFieldsCode.isEmpty) return '';
-    return 'void dehydrateDirectives(${destroyPipesParamName}) '
-        '{ ${destroyPipesCode} ${dehydrateFieldsCode} }';
+    var destroyDirectivesCode =
+        _logic.genDirectivesOnDestroy(this._directiveRecords);
+    if (destroyPipesCode.isEmpty &&
+        dehydrateFieldsCode.isEmpty &&
+        destroyDirectivesCode.isEmpty) return '';
+    return '''void dehydrateDirectives(${destroyPipesParamName}) {
+      if (${destroyPipesParamName}) {
+        ${destroyPipesCode}
+        ${destroyDirectivesCode}
+      }
+      ${dehydrateFieldsCode}
+    }''';
   }
 
   String _maybeGenHydrateDirectives() {
@@ -315,20 +347,53 @@ class _CodegenState {
     return 'var ${declareNames.join(', ')};';
   }
 
-  String _genRecord(ProtoRecord r) {
-    var rec = null;
+  String _genRecord(ProtoRecord r, int index) {
+    var code = null;
     if (r.isLifeCycleRecord()) {
-      rec = _genDirectiveLifecycle(r);
+      code = _genDirectiveLifecycle(r);
     } else if (r.isPipeRecord()) {
-      rec = _genPipeCheck(r);
+      code = _genPipeCheck(r);
+    } else if (r.isConditionalSkipRecord()) {
+      code = _genConditionalSkip(r, _names.getLocalName(r.contextIndex));
+    } else if (r.isUnconditionalSkipRecord()) {
+      code = _genUnconditionalSkip(r);
     } else {
-      rec = _genReferenceCheck(r);
+      code = _genReferenceCheck(r);
     }
-    return '''
+
+    code = '''
       ${this._maybeFirstInBinding(r)}
-      ${rec}
+      ${code}
       ${this._maybeGenLastInDirective(r)}
+      ${this._genEndOfSkipBlock(index)}
     ''';
+
+    return code;
+  }
+
+  String _genConditionalSkip(ProtoRecord r, String condition) {
+    var maybeNegate = r.mode == RecordType.SkipRecordsIf ? '!' : '';
+    _endOfBlockIdxs.add(r.fixedArgs[0] - 1);
+
+    return 'if ($maybeNegate$condition) {';
+  }
+
+  String _genUnconditionalSkip(ProtoRecord r) {
+    _endOfBlockIdxs.removeLast();
+    _endOfBlockIdxs.add(r.fixedArgs[0] - 1);
+    return '} else {';
+  }
+
+  String _genEndOfSkipBlock(int protoIndex) {
+    if (!ListWrapper.isEmpty(this._endOfBlockIdxs)) {
+      var endOfBlock = ListWrapper.last(this._endOfBlockIdxs);
+      if (protoIndex == endOfBlock) {
+        this._endOfBlockIdxs.removeLast();
+        return '}';
+      }
+    }
+
+    return '';
   }
 
   String _genDirectiveLifecycle(ProtoRecord r) {
@@ -354,7 +419,7 @@ class _CodegenState {
     var pipeType = r.name;
 
     var init = '''
-      if (${_genPrefix}$_IDENTICAL_CHECK_FN($pipe, ${_genPrefix}$_UTIL.uninitialized)) {
+      if ($pipe == ${_genPrefix}$_UTIL.uninitialized) {
         $pipe = ${_names.getPipesAccessorName()}.get('$pipeType');
       }
     ''';
@@ -368,7 +433,8 @@ class _CodegenState {
     var condition = '''!${pipe}.pure || (${contexOrArgCheck.join(" || ")})''';
 
     var check = '''
-      if (${_genPrefix}$_NOT_IDENTICAL_CHECK_FN($oldValue, $newValue)) {
+      ${_genThrowOnChangeCheck(oldValue, newValue)}
+      if (${_genPrefix}$_UTIL.looseNotIdentical($oldValue, $newValue)) {
         $newValue = ${_genPrefix}$_UTIL.unwrapValue($newValue);
         ${_genChangeMarker(r)}
         ${_genUpdateDirectiveOrElement(r)}
@@ -394,7 +460,8 @@ class _CodegenState {
     ''';
 
     var check = '''
-      if (${_genPrefix}$_NOT_IDENTICAL_CHECK_FN($newValue, $oldValue)) {
+      ${_genThrowOnChangeCheck(oldValue, newValue)}
+      if (${_genPrefix}$_UTIL.looseNotIdentical($newValue, $oldValue)) {
         ${_genChangeMarker(r)}
         ${_genUpdateDirectiveOrElement(r)}
         ${_genAddToChanges(r)}
@@ -427,7 +494,6 @@ class _CodegenState {
     if (!r.lastInBinding) return '';
 
     var newValue = _names.getLocalName(r.selfIndex);
-    var oldValue = _names.getFieldName(r.selfIndex);
     var notifyDebug = _genConfig.logBindingUpdate
         ? "this.logBindingUpdate(${newValue});"
         : "";
@@ -437,14 +503,12 @@ class _CodegenState {
       var directiveProperty =
           '${_names.getDirectiveName(br.directiveRecord.directiveIndex)}.${br.target.name}';
       return '''
-      ${_genThrowOnChangeCheck(oldValue, newValue)}
       $directiveProperty = $newValue;
       ${notifyDebug}
       $_IS_CHANGED_LOCAL = true;
     ''';
     } else {
       return '''
-      ${_genThrowOnChangeCheck(oldValue, newValue)}
       this.notifyDispatcher(${newValue});
       ${notifyDebug}
     ''';
@@ -452,23 +516,11 @@ class _CodegenState {
   }
 
   String _genThrowOnChangeCheck(String oldValue, String newValue) {
-    if (this._genConfig.genCheckNoChanges) {
-      return '''
-        if(throwOnChange) {
-          this.throwOnChangeError(${oldValue}, ${newValue});
-        }
-      ''';
-    } else {
-      return "";
-    }
-  }
-
-  String _genCheckNoChanges() {
-    if (this._genConfig.genCheckNoChanges) {
-      return 'void checkNoChanges() { runDetectChanges(true); }';
-    } else {
-      return '';
-    }
+    return '''
+      if(${_genPrefix}assertionsEnabled() && throwOnChange && !${_genPrefix}${_UTIL}.devModeEqual(${oldValue}, ${newValue})) {
+        this.throwOnChangeError(${oldValue}, ${newValue});
+      }
+    ''';
   }
 
   String _maybeFirstInBinding(ProtoRecord r) {
@@ -498,20 +550,20 @@ class _CodegenState {
   String _genDoCheck(ProtoRecord r) {
     var br = r.bindingRecord;
     return 'if (!throwOnChange) '
-        '${_names.getDirectiveName(br.directiveRecord.directiveIndex)}.doCheck();';
+        '${_names.getDirectiveName(br.directiveRecord.directiveIndex)}.ngDoCheck();';
   }
 
   String _genOnInit(ProtoRecord r) {
     var br = r.bindingRecord;
-    return 'if (!throwOnChange && !${_names.getAlreadyCheckedName()}) '
-        '${_names.getDirectiveName(br.directiveRecord.directiveIndex)}.onInit();';
+    return 'if (!throwOnChange && ${_names.getStateName()} == ${_genPrefix}$_STATE.NeverChecked) '
+        '${_names.getDirectiveName(br.directiveRecord.directiveIndex)}.ngOnInit();';
   }
 
   String _genOnChanges(ProtoRecord r) {
     var br = r.bindingRecord;
     return 'if (!throwOnChange && $_CHANGES_LOCAL != null) '
         '${_names.getDirectiveName(br.directiveRecord.directiveIndex)}'
-        '.onChanges($_CHANGES_LOCAL);';
+        '.ngOnChanges($_CHANGES_LOCAL);';
   }
 
   String _genNotifyOnPushDetectors(ProtoRecord r) {
@@ -525,15 +577,13 @@ class _CodegenState {
   }
 }
 
-const PROTO_CHANGE_DETECTOR_FACTORY_METHOD = 'newProtoChangeDetector';
+const CHANGE_DETECTOR_FACTORY_METHOD = 'newChangeDetector';
 
 const _BASE_CLASS = 'AbstractChangeDetector';
 const _CHANGES_LOCAL = 'changes';
 const _GEN_PREFIX = '_gen';
 const _GEN_PREFIX_WITH_DOT = _GEN_PREFIX + '.';
 const _GEN_RECORDS_METHOD_NAME = '_createRecords';
-const _IDENTICAL_CHECK_FN = 'looseIdentical';
-const _NOT_IDENTICAL_CHECK_FN = 'looseNotIdentical';
 const _IS_CHANGED_LOCAL = 'isChanged';
 const _PREGEN_PROTO_CHANGE_DETECTOR_IMPORT =
     'package:angular2/src/core/change_detection/pregen_proto_change_detector.dart';
@@ -541,3 +591,4 @@ const _GEN_PROPERTY_BINDING_TARGETS_NAME =
     '${_GEN_PREFIX}_propertyBindingTargets';
 const _GEN_DIRECTIVE_INDICES_NAME = '${_GEN_PREFIX}_directiveIndices';
 const _UTIL = 'ChangeDetectionUtil';
+const _STATE = 'ChangeDetectorState';

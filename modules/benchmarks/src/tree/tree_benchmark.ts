@@ -6,27 +6,26 @@ import {
   View,
   ViewContainerRef,
   bind,
-  Binding,
-  NgIf
+  provide,
+  Provider
 } from 'angular2/core';
+import {NgIf} from 'angular2/common';
 
-import {LifeCycle} from 'angular2/src/core/life_cycle/life_cycle';
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {isPresent} from 'angular2/src/core/facade/lang';
-import {window, document, gc} from 'angular2/src/core/facade/browser';
+import {ApplicationRef} from 'angular2/src/core/application_ref';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {isPresent} from 'angular2/src/facade/lang';
+import {window, document, gc} from 'angular2/src/facade/browser';
 import {
   getIntParameter,
   getStringParameter,
   bindAction,
   windowProfile,
   windowProfileEnd
-} from 'angular2/src/test_lib/benchmark_util';
-import {BrowserDomAdapter} from 'angular2/src/core/dom/browser_adapter';
-import {APP_VIEW_POOL_CAPACITY} from 'angular2/src/core/linker/view_pool';
+} from 'angular2/src/testing/benchmark_util';
+import {BrowserDomAdapter} from 'angular2/src/platform/browser/browser_adapter';
 
-function createBindings(): Binding[] {
-  var viewCacheCapacity = getStringParameter('viewcache') == 'true' ? 10000 : 1;
-  return [bind(APP_VIEW_POOL_CAPACITY).toValue(viewCacheCapacity)];
+function createProviders(): Provider[] {
+  return [];
 }
 
 var BASELINE_TREE_TEMPLATE;
@@ -37,11 +36,11 @@ export function main() {
   var maxDepth = getIntParameter('depth');
 
   BASELINE_TREE_TEMPLATE = DOM.createTemplate(
-      '<span>_<template class="ng-binding"></template><template class="ng-binding"></template></span>');
+      '<span>_<template class="ng-provider"></template><template class="ng-provider"></template></span>');
   BASELINE_IF_TEMPLATE = DOM.createTemplate('<span template="if"><tree></tree></span>');
 
   var app;
-  var lifeCycle;
+  var appRef;
   var baselineRootTreeComponent;
   var count = 0;
 
@@ -49,7 +48,7 @@ export function main() {
     // TODO: We need an initial value as otherwise the getter for data.value will fail
     // --> this should be already caught in change detection!
     app.initData = new TreeNode('', null, null);
-    lifeCycle.tick();
+    appRef.tick();
   }
 
   function profile(create, destroy, name) {
@@ -85,16 +84,16 @@ export function main() {
     var values = count++ % 2 == 0 ? ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*'] :
                                     ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', '-'];
     app.initData = buildTree(maxDepth, values, 0);
-    lifeCycle.tick();
+    appRef.tick();
   }
 
   function noop() {}
 
   function initNg2() {
-    bootstrap(AppComponent, createBindings())
+    bootstrap(AppComponent, createProviders())
         .then((ref) => {
           var injector = ref.injector;
-          lifeCycle = injector.get(LifeCycle);
+          appRef = injector.get(ApplicationRef);
 
           app = ref.hostComponent;
           bindAction('#ng2DestroyDom', ng2DestroyDom);
@@ -222,7 +221,7 @@ class BaseLineIf {
 @View({
   directives: [TreeComponent, NgIf],
   template:
-      `<span> {{data.value}} <span template='ng-if data.right != null'><tree [data]='data.right'></tree></span><span template='ng-if data.left != null'><tree [data]='data.left'></tree></span></span>`
+      `<span> {{data.value}} <span template='ngIf data.right != null'><tree [data]='data.right'></tree></span><span template='ngIf data.left != null'><tree [data]='data.left'></tree></span></span>`
 })
 class TreeComponent {
   data: TreeNode;

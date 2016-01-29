@@ -64,7 +64,7 @@ Future _linkRecursive(NgMeta ngMeta, AssetReader reader, AssetId assetId,
   return Future.wait(ngMeta.ngDeps.exports
       .where((export) => !isDartCoreUri(export.uri))
       .map((export) =>
-          _urlResolver.resolve(assetUri, toMetaExtension(export.uri)))
+          _urlResolver.resolve(assetUri, toSummaryExtension(export.uri)))
       .where((uri) => !seen.contains(uri))
       .map((uri) async {
     seen.add(uri);
@@ -77,7 +77,7 @@ Future _linkRecursive(NgMeta ngMeta, AssetReader reader, AssetId assetId,
       }
     } catch (err, st) {
       // Log and continue.
-      logger.warning('Failed to fetch $uri. Message: $err.\n$st');
+      log.warning('Failed to fetch $uri. Message: $err.\n$st', asset: assetId);
     }
   }));
 }

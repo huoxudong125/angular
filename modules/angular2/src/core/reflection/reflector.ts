@@ -1,5 +1,5 @@
-import {Type, isPresent, stringify} from 'angular2/src/core/facade/lang';
-import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
+import {Type, isPresent, stringify} from 'angular2/src/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/facade/exceptions';
 import {
   ListWrapper,
   Map,
@@ -7,22 +7,34 @@ import {
   Set,
   SetWrapper,
   StringMapWrapper
-} from 'angular2/src/core/facade/collection';
+} from 'angular2/src/facade/collection';
 import {SetterFn, GetterFn, MethodFn} from './types';
 import {PlatformReflectionCapabilities} from './platform_reflection_capabilities';
 export {SetterFn, GetterFn, MethodFn} from './types';
 export {PlatformReflectionCapabilities} from './platform_reflection_capabilities';
 
+/**
+ * Reflective information about a symbol, including annotations, interfaces, and other metadata.
+ */
 export class ReflectionInfo {
   constructor(public annotations?: any[], public parameters?: any[][], public factory?: Function,
               public interfaces?: any[], public propMetadata?: {[key: string]: any[]}) {}
 }
 
+/**
+ * Provides access to reflection data about symbols. Used internally by Angular
+ * to power dependency injection and compilation.
+ */
 export class Reflector {
+  /** @internal */
   _injectableInfo = new Map<any, ReflectionInfo>();
+  /** @internal */
   _getters = new Map<string, GetterFn>();
+  /** @internal */
   _setters = new Map<string, SetterFn>();
+  /** @internal */
   _methods = new Map<string, MethodFn>();
+  /** @internal */
   _usedKeys: Set<any>;
   reflectionCapabilities: PlatformReflectionCapabilities;
 
@@ -49,7 +61,7 @@ export class Reflector {
       throw new BaseException('Usage tracking is disabled');
     }
     var allTypes = MapWrapper.keys(this._injectableInfo);
-    return ListWrapper.filter(allTypes, (key) => { return !SetWrapper.has(this._usedKeys, key); });
+    return allTypes.filter(key => !SetWrapper.has(this._usedKeys, key));
   }
 
   registerFunction(func: Function, funcInfo: ReflectionInfo): void {
@@ -135,6 +147,7 @@ export class Reflector {
     }
   }
 
+  /** @internal */
   _getReflectionInfo(typeOrFunc) {
     if (isPresent(this._usedKeys)) {
       this._usedKeys.add(typeOrFunc);
@@ -142,6 +155,7 @@ export class Reflector {
     return this._injectableInfo.get(typeOrFunc);
   }
 
+  /** @internal */
   _containsReflectionInfo(typeOrFunc) { return this._injectableInfo.has(typeOrFunc); }
 
   importUri(type: Type): string { return this.reflectionCapabilities.importUri(type); }

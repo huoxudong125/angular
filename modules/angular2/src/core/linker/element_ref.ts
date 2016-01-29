@@ -1,6 +1,5 @@
-import {BaseException} from 'angular2/src/core/facade/exceptions';
-import {ViewRef} from './view_ref';
-import {RenderViewRef, RenderElementRef, Renderer} from 'angular2/src/core/render/api';
+import {unimplemented} from 'angular2/src/facade/exceptions';
+import {AppElement} from './element';
 
 /**
  * Represents a location in a View that has an injection, change-detection and render context
@@ -12,41 +11,7 @@ import {RenderViewRef, RenderElementRef, Renderer} from 'angular2/src/core/rende
  * An `ElementRef` is backed by a render-specific element. In the browser, this is usually a DOM
  * element.
  */
-export class ElementRef implements RenderElementRef {
-  /**
-   * @internal
-   *
-   * Reference to the {@link ViewRef} that this `ElementRef` is part of.
-   */
-  parentView: ViewRef;
-
-
-  /**
-   * @internal
-   *
-   * Index of the element inside the {@link ViewRef}.
-   *
-   * This is used internally by the Angular framework to locate elements.
-   */
-  boundElementIndex: number;
-  /**
-   * @internal
-   */
-  constructor(parentView: ViewRef, boundElementIndex: number, private _renderer: Renderer) {
-    this.parentView = parentView;
-    this.boundElementIndex = boundElementIndex;
-  }
-
-  /**
-   * @internal
-   */
-  get renderView(): RenderViewRef { return this.parentView.render; }
-
-  // TODO(tbosch): remove this once Typescript supports declaring interfaces
-  // that contain getters
-  // https://github.com/Microsoft/TypeScript/issues/3745
-  set renderView(viewRef: RenderViewRef) { throw new BaseException('Abstract setter'); }
-
+export abstract class ElementRef {
   /**
    * The underlying native element or `null` if direct access to native elements is not supported
    * (e.g. when the application runs in a web worker).
@@ -66,5 +31,13 @@ export class ElementRef implements RenderElementRef {
    *   </p>
    * </div>
    */
-  get nativeElement(): any { return this._renderer.getNativeElementSync(this); }
+  get nativeElement(): any { return unimplemented(); }
+}
+
+export class ElementRef_ implements ElementRef {
+  constructor(private _appElement: AppElement) {}
+
+  get internalElement(): AppElement { return this._appElement; }
+
+  get nativeElement() { return this._appElement.nativeElement; }
 }

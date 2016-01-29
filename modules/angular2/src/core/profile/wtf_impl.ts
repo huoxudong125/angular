@@ -1,5 +1,8 @@
-import {global} from '../facade/lang';
+import {global} from 'angular2/src/facade/lang';
 
+/**
+ * A scope function for the Web Tracing Framework (WTF).
+ */
 export interface WtfScopeFn { (arg0?: any, arg1?: any): any; }
 
 interface WTF {
@@ -13,15 +16,13 @@ interface Trace {
   endTimeRange(range: Range);
 }
 
-interface Range {}
+export interface Range {}
 
 interface Events {
   createScope(signature: string, flags: any): Scope;
 }
 
-interface Scope {
-  (...args): any;
-}
+export interface Scope { (...args): any; }
 
 var trace: Trace;
 var events: Events;

@@ -8,18 +8,20 @@ import {
   expect,
   iit,
   inject,
-  beforeEachBindings,
+  beforeEachProviders,
   it,
   xit,
   TestComponentBuilder
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
 
-import {PromiseWrapper, EventEmitter, ObservableWrapper} from 'angular2/src/core/facade/async';
+import {PromiseWrapper, EventEmitter, ObservableWrapper} from 'angular2/src/facade/async';
 
-import {Injectable, NgFor} from 'angular2/core';
-import {By, Scope} from 'angular2/src/core/debug';
+import {Injectable} from 'angular2/core';
+import {NgFor, NgIf} from 'angular2/common';
+import {Scope} from 'angular2/core';
+import {By} from 'angular2/platform/common_dom';
 
 import {
   Directive,
@@ -51,8 +53,8 @@ class MessageDir {
   template: `<div class="child" message="child">
                <span class="childnested" message="nestedchild">Child</span>
              </div>
-             <span class="child" [inner-html]="childBinding"></span>`,
-  directives: [MessageDir]
+             <span class="child" [innerHtml]="childBinding"></span>`,
+  directives: [MessageDir],
 })
 @Injectable()
 class ChildComp {
@@ -61,14 +63,24 @@ class ChildComp {
   constructor() { this.childBinding = 'Original'; }
 }
 
-@Component({selector: 'parent-comp', viewBindings: [Logger]})
+@Component({selector: 'cond-content-comp', viewProviders: [Logger]})
+@View({
+  template: `<div class="child" message="child" *ngIf="false"><ng-content></ng-content></div>`,
+  directives: [NgIf, MessageDir],
+})
+@Injectable()
+class ConditionalContentComp {
+}
+
+@Component({selector: 'parent-comp', viewProviders: [Logger]})
 @View({
   template: `<div class="parent" message="parent">
                <span class="parentnested" message="nestedparent">Parent</span>
              </div>
-             <span class="parent" [inner-html]="parentBinding"></span>
-             <child-comp class="child-comp-class"></child-comp>`,
-  directives: [ChildComp, MessageDir]
+             <span class="parent" [innerHtml]="parentBinding"></span>
+             <child-comp class="child-comp-class"></child-comp>
+             <cond-content-comp class="cond-content-comp-class"></cond-content-comp>`,
+  directives: [ChildComp, MessageDir, ConditionalContentComp],
 })
 @Injectable()
 class ParentComp {
@@ -79,7 +91,7 @@ class ParentComp {
 @Directive({selector: 'custom-emitter', outputs: ['myevent']})
 @Injectable()
 class CustomEmitter {
-  myevent: EventEmitter;
+  myevent: EventEmitter<any>;
 
   constructor() { this.myevent = new EventEmitter(); }
 }
@@ -88,7 +100,7 @@ class CustomEmitter {
 @View({
   template: `<button (click)="handleClick()"></button>
              <custom-emitter (myevent)="handleCustom()"></custom-emitter>`,
-  directives: [CustomEmitter]
+  directives: [CustomEmitter],
 })
 @Injectable()
 class EventsComp {
@@ -105,13 +117,13 @@ class EventsComp {
   handleCustom() { this.customed = true; }
 }
 
-@Component({selector: 'using-for', viewBindings: [Logger]})
+@Component({selector: 'using-for', viewProviders: [Logger]})
 @View({
-  template: `<span *ng-for="#thing of stuff" [inner-html]="thing"></span>
+  template: `<span *ngFor="#thing of stuff" [innerHtml]="thing"></span>
             <ul message="list">
-              <li *ng-for="#item of stuff" [inner-html]="item"></li>
+              <li *ngFor="#item of stuff" [innerHtml]="item"></li>
             </ul>`,
-  directives: [NgFor, MessageDir]
+  directives: [NgFor, MessageDir],
 })
 @Injectable()
 class UsingFor {
@@ -127,19 +139,21 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
          tcb.createAsync(ParentComp)
-             .then((rootTestComponent) => {
-               rootTestComponent.detectChanges();
+             .then((componentFixture) => {
+               componentFixture.detectChanges();
 
-               var childEls = rootTestComponent.debugElement.children;
+               var childEls = componentFixture.debugElement.children;
                // The root is a lone component, and has no children in the light dom.
                expect(childEls.length).toEqual(0);
 
-               var rootCompChildren = rootTestComponent.debugElement.componentViewChildren;
-               // The root component has 3 elements in its shadow view.
-               expect(rootCompChildren.length).toEqual(3);
+               var rootCompChildren = componentFixture.debugElement.componentViewChildren;
+               // The root component has 4 elements in its shadow view.
+               expect(rootCompChildren.length).toEqual(4);
                expect(DOM.hasClass(rootCompChildren[0].nativeElement, 'parent')).toBe(true);
                expect(DOM.hasClass(rootCompChildren[1].nativeElement, 'parent')).toBe(true);
                expect(DOM.hasClass(rootCompChildren[2].nativeElement, 'child-comp-class'))
+                   .toBe(true);
+               expect(DOM.hasClass(rootCompChildren[3].nativeElement, 'cond-content-comp-class'))
                    .toBe(true);
 
                var nested = rootCompChildren[0].children;
@@ -158,6 +172,14 @@ export function main() {
                expect(childNested.length).toEqual(1);
                expect(DOM.hasClass(childNested[0].nativeElement, 'childnested')).toBe(true);
 
+               var conditionalContentComp = rootCompChildren[3];
+               expect(conditionalContentComp.children.length).toEqual(0);
+
+               expect(conditionalContentComp.componentViewChildren.length).toEqual(1);
+               var ngIfWithProjectedNgContent = conditionalContentComp.componentViewChildren[0];
+               expect(ngIfWithProjectedNgContent.children.length).toBe(0);
+               expect(ngIfWithProjectedNgContent.componentViewChildren.length).toBe(0);
+
                async.done();
              });
        }));
@@ -165,10 +187,10 @@ export function main() {
     it('should list child elements within viewports',
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
-         tcb.createAsync(UsingFor).then((rootTestComponent) => {
-           rootTestComponent.detectChanges();
+         tcb.createAsync(UsingFor).then((componentFixture) => {
+           componentFixture.detectChanges();
 
-           var childEls = rootTestComponent.debugElement.componentViewChildren;
+           var childEls = componentFixture.debugElement.componentViewChildren;
            // TODO should this count include the <template> element?
            expect(childEls.length).toEqual(5);
 
@@ -183,10 +205,10 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
          tcb.createAsync(ParentComp)
-             .then((rootTestComponent) => {
-               rootTestComponent.detectChanges();
+             .then((componentFixture) => {
+               componentFixture.detectChanges();
 
-               var childTestEls = rootTestComponent.debugElement.queryAll(By.directive(MessageDir));
+               var childTestEls = componentFixture.debugElement.queryAll(By.directive(MessageDir));
 
                expect(childTestEls.length).toBe(4);
                expect(DOM.hasClass(childTestEls[0].nativeElement, 'parent')).toBe(true);
@@ -201,10 +223,10 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
          tcb.createAsync(ParentComp)
-             .then((rootTestComponent) => {
-               rootTestComponent.detectChanges();
+             .then((componentFixture) => {
+               componentFixture.detectChanges();
 
-               var parentEl = rootTestComponent.debugElement.componentViewChildren[0];
+               var parentEl = componentFixture.debugElement.componentViewChildren[0];
 
                var childTestEls = parentEl.queryAll(By.directive(MessageDir), Scope.light);
 
@@ -219,11 +241,11 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
          tcb.createAsync(ParentComp)
-             .then((rootTestComponent) => {
-               rootTestComponent.detectChanges();
+             .then((componentFixture) => {
+               componentFixture.detectChanges();
 
                var childTestEls =
-                   rootTestComponent.debugElement.queryAll(By.directive(MessageDir), Scope.view);
+                   componentFixture.debugElement.queryAll(By.directive(MessageDir), Scope.view);
 
                expect(childTestEls.length).toBe(2);
                expect(DOM.hasClass(childTestEls[0].nativeElement, 'parent')).toBe(true);
@@ -237,10 +259,10 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
          tcb.createAsync(ParentComp)
-             .then((rootTestComponent) => {
-               rootTestComponent.detectChanges();
+             .then((componentFixture) => {
+               componentFixture.detectChanges();
 
-               expect(rootTestComponent.debugElement.componentViewChildren[0].inject(Logger).log)
+               expect(componentFixture.debugElement.componentViewChildren[0].inject(Logger).log)
                    .toEqual(['parent', 'nestedparent', 'child', 'nestedchild']);
 
                async.done();
@@ -251,19 +273,19 @@ export function main() {
        inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
 
          tcb.createAsync(EventsComp)
-             .then((rootTestComponent) => {
-               rootTestComponent.detectChanges();
+             .then((componentFixture) => {
+               componentFixture.detectChanges();
 
-               expect(rootTestComponent.debugElement.componentInstance.clicked).toBe(false);
-               expect(rootTestComponent.debugElement.componentInstance.customed).toBe(false);
+               expect(componentFixture.debugElement.componentInstance.clicked).toBe(false);
+               expect(componentFixture.debugElement.componentInstance.customed).toBe(false);
 
-               rootTestComponent.debugElement.componentViewChildren[0].triggerEventHandler(
+               componentFixture.debugElement.componentViewChildren[0].triggerEventHandler(
                    'click', <Event>{});
-               expect(rootTestComponent.debugElement.componentInstance.clicked).toBe(true);
+               expect(componentFixture.debugElement.componentInstance.clicked).toBe(true);
 
-               rootTestComponent.debugElement.componentViewChildren[1].triggerEventHandler(
+               componentFixture.debugElement.componentViewChildren[1].triggerEventHandler(
                    'myevent', <Event>{});
-               expect(rootTestComponent.debugElement.componentInstance.customed).toBe(true);
+               expect(componentFixture.debugElement.componentInstance.customed).toBe(true);
 
                async.done();
              });

@@ -16,6 +16,9 @@ const SIMPLE_CSS = '''
 }
 ''';
 
+const HTTP_IMPORT = 'https://fonts.googleapis.com/css?family=Roboto';
+const CSS_WITH_IMPORT = '@import url(${HTTP_IMPORT});';
+
 main() {
   Html5LibDomAdapter.makeCurrent();
   allTests();
@@ -38,17 +41,6 @@ allTests() {
         .toBe(false);
   });
 
-  it('should declare outputs', () {
-    var transform = new FakeDeclaringTransform()
-      ..primaryId = new AssetId('somepackage', 'lib/style.css');
-    subject.declareOutputs(transform);
-    expect(transform.outputs.length).toBe(2);
-    expect(transform.outputs[0].toString())
-        .toEqual('somepackage|lib/style.css.dart');
-    expect(transform.outputs[1].toString())
-        .toEqual('somepackage|lib/style.css.shim.dart');
-  });
-
   it('should compile stylesheets', () async {
     var cssFile = new Asset.fromString(
         new AssetId('somepackage', 'lib/style.css'), SIMPLE_CSS);
@@ -59,6 +51,20 @@ allTests() {
         .toEqual('somepackage|lib/style.css.dart');
     expect(transform.outputs[1].id.toString())
         .toEqual('somepackage|lib/style.css.shim.dart');
+  });
+
+  it('should compile stylesheets with imports', () async {
+    var cssFile = new Asset.fromString(
+        new AssetId('somepackage', 'lib/style.css'), CSS_WITH_IMPORT);
+    var transform = new FakeTransform()..primaryInput = cssFile;
+    await subject.apply(transform);
+    expect(transform.outputs.length).toBe(2);
+    expect(transform.outputs[0].id.toString())
+        .toEqual('somepackage|lib/style.css.dart');
+    expect(transform.outputs[1].id.toString())
+        .toEqual('somepackage|lib/style.css.shim.dart');
+    expect(await transform.outputs[0].readAsString()).toContain(HTTP_IMPORT);
+    expect(await transform.outputs[1].readAsString()).toContain(HTTP_IMPORT);
   });
 }
 

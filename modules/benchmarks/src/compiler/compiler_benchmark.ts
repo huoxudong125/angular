@@ -1,9 +1,9 @@
 import {bootstrap} from 'angular2/bootstrap';
-import {BrowserDomAdapter} from 'angular2/src/core/dom/browser_adapter';
-import {DOM} from 'angular2/src/core/dom/dom_adapter';
-import {PromiseWrapper} from 'angular2/src/core/facade/async';
-import {ListWrapper, Map, MapWrapper} from 'angular2/src/core/facade/collection';
-import {DateWrapper, Type, print, isPresent} from 'angular2/src/core/facade/lang';
+import {BrowserDomAdapter} from 'angular2/src/platform/browser/browser_adapter';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
+import {PromiseWrapper} from 'angular2/src/facade/async';
+import {ListWrapper, Map, MapWrapper} from 'angular2/src/facade/collection';
+import {DateWrapper, Type, print, isPresent} from 'angular2/src/facade/lang';
 
 import {
   Compiler,
@@ -12,27 +12,29 @@ import {
   View,
   ViewContainerRef,
   bind,
-  Binding,
-  NgIf,
+  provide,
+  Provider,
   ViewMetadata
 } from 'angular2/core';
 
 import {ChangeDetectorGenConfig} from 'angular2/src/core/change_detection/change_detection';
 import {ViewResolver} from 'angular2/src/core/linker/view_resolver';
 
-import {getIntParameter, bindAction} from 'angular2/src/test_lib/benchmark_util';
+import {getIntParameter, bindAction} from 'angular2/src/testing/benchmark_util';
 
-function _createBindings(): Binding[] {
+function _createBindings(): Provider[] {
   var multiplyTemplatesBy = getIntParameter('elements');
   return [
-    bind(ViewResolver)
-        .toFactory(() => new MultiplyViewResolver(
-                       multiplyTemplatesBy,
-                       [BenchmarkComponentNoBindings, BenchmarkComponentWithBindings]),
-                   []),
+    provide(ViewResolver,
+            {
+              useFactory: () => new MultiplyViewResolver(
+                              multiplyTemplatesBy,
+                              [BenchmarkComponentNoBindings, BenchmarkComponentWithBindings]),
+              deps: []
+            }),
     // Use DynamicChangeDetector as that is the only one that Dart supports as well
     // so that we can compare the numbers between JS and Dart
-    bind(ChangeDetectorGenConfig).toValue(new ChangeDetectorGenConfig(false, false, false, false))
+    provide(ChangeDetectorGenConfig, {useValue: new ChangeDetectorGenConfig(false, false, false)})
   ];
 }
 

@@ -1,12 +1,6 @@
-import {StringMapWrapper} from 'angular2/src/core/facade/collection';
-import {
-  isPresent,
-  isBlank,
-  StringWrapper,
-  RegExpWrapper,
-  CONST_EXPR
-} from 'angular2/src/core/facade/lang';
-import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
+import {StringMapWrapper} from 'angular2/src/facade/collection';
+import {isPresent, isBlank, RegExpWrapper, CONST_EXPR} from 'angular2/src/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/facade/exceptions';
 
 /**
  * This class represents a parsed URL
@@ -22,6 +16,7 @@ export class Url {
 
   segmentToString(): string { return this.path + this._matrixParamsToString(); }
 
+  /** @internal */
   _auxToString(): string {
     return this.auxiliary.length > 0 ?
                ('(' + this.auxiliary.map(sibling => sibling.toString()).join('//') + ')') :
@@ -36,6 +31,7 @@ export class Url {
     return ';' + serializeParams(this.params).join(';');
   }
 
+  /** @internal */
   _childString(): string { return isPresent(this.child) ? ('/' + this.child.toString()) : ''; }
 }
 
@@ -68,19 +64,19 @@ export function pathSegmentsToUrl(pathSegments: string[]): Url {
   return url;
 }
 
-var SEGMENT_RE = RegExpWrapper.create('^[^\\/\\(\\)\\?;=&]+');
+var SEGMENT_RE = RegExpWrapper.create('^[^\\/\\(\\)\\?;=&#]+');
 function matchUrlSegment(str: string): string {
   var match = RegExpWrapper.firstMatch(SEGMENT_RE, str);
-  return isPresent(match) ? match[0] : null;
+  return isPresent(match) ? match[0] : '';
 }
 
 export class UrlParser {
   private _remaining: string;
 
-  peekStartsWith(str: string): boolean { return StringWrapper.startsWith(this._remaining, str); }
+  peekStartsWith(str: string): boolean { return this._remaining.startsWith(str); }
 
   capture(str: string): void {
-    if (!StringWrapper.startsWith(this._remaining, str)) {
+    if (!this._remaining.startsWith(str)) {
       throw new BaseException(`Expected "${str}".`);
     }
     this._remaining = this._remaining.substring(str.length);

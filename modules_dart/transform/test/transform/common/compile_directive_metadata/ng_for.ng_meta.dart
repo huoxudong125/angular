@@ -4,14 +4,15 @@ final ngFor = {
   "NgFor": {
     "kind": "type",
     "value": {
+      "class": "Directive",
       "isComponent": false,
       "dynamicLoadable": true,
-      "selector": "[ng-for][ng-for-of]",
+      "selector": "[ngFor][ngForOf]",
       "exportAs": null,
       "type": {
         "id": 9999,
         "name": "NgFor",
-        "moduleUrl": "asset:angular2/lib/src/core/directives/ng_for.dart"
+        "moduleUrl": "asset:angular2/lib/src/common/directives/ng_for.dart"
       },
       "changeDetection": null,
       "inputs": {"ngForOf": "ngForOf"},

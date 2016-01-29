@@ -1,11 +1,14 @@
-import {isBlank, isPresent, CONST} from 'angular2/src/core/facade/lang';
-import {BaseException} from 'angular2/src/core/facade/exceptions';
-import {ListWrapper} from 'angular2/src/core/facade/collection';
+import {isBlank, isPresent, CONST} from 'angular2/src/facade/lang';
+import {BaseException} from 'angular2/src/facade/exceptions';
+import {ListWrapper} from 'angular2/src/facade/collection';
 import {ChangeDetectorRef} from '../change_detector_ref';
-import {Binding, SkipSelfMetadata, OptionalMetadata, Injectable} from 'angular2/src/core/di';
+import {Provider, SkipSelfMetadata, OptionalMetadata, Injectable} from 'angular2/src/core/di';
 
+/**
+ * A differ that tracks changes made to an object over time.
+ */
 export interface KeyValueDiffer {
-  diff(object: Object);
+  diff(object: any);
   onDestroy();
 }
 
@@ -13,7 +16,7 @@ export interface KeyValueDiffer {
  * Provides a factory for {@link KeyValueDiffer}.
  */
 export interface KeyValueDifferFactory {
-  supports(objects: Object): boolean;
+  supports(objects: any): boolean;
   create(cdRef: ChangeDetectorRef): KeyValueDiffer;
 }
 
@@ -36,7 +39,7 @@ export class KeyValueDiffers {
   }
 
   /**
-   * Takes an array of {@link KeyValueDifferFactory} and returns a binding used to extend the
+   * Takes an array of {@link KeyValueDifferFactory} and returns a provider used to extend the
    * inherited {@link KeyValueDiffers} instance with the provided factories and return a new
    * {@link KeyValueDiffers} instance.
    *
@@ -44,19 +47,19 @@ export class KeyValueDiffers {
          * which will only be applied to the injector for this component and its children.
          * This step is all that's required to make a new {@link KeyValueDiffer} available.
    *
-   * # Example
+   * ### Example
    *
    * ```
    * @Component({
-   *   viewBindings: [
+   *   viewProviders: [
    *     KeyValueDiffers.extend([new ImmutableMapDiffer()])
    *   ]
    * })
    * ```
    */
-  static extend(factories: KeyValueDifferFactory[]): Binding {
-    return new Binding(KeyValueDiffers, {
-      toFactory: (parent: KeyValueDiffers) => {
+  static extend(factories: KeyValueDifferFactory[]): Provider {
+    return new Provider(KeyValueDiffers, {
+      useFactory: (parent: KeyValueDiffers) => {
         if (isBlank(parent)) {
           // Typically would occur when calling KeyValueDiffers.extend inside of dependencies passed
           // to
@@ -71,7 +74,7 @@ export class KeyValueDiffers {
   }
 
   find(kv: Object): KeyValueDifferFactory {
-    var factory = ListWrapper.find(this.factories, f => f.supports(kv));
+    var factory = this.factories.find(f => f.supports(kv));
     if (isPresent(factory)) {
       return factory;
     } else {

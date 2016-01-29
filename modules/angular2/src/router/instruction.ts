@@ -1,9 +1,7 @@
-import {Map, MapWrapper, StringMapWrapper, ListWrapper} from 'angular2/src/core/facade/collection';
-import {isPresent, isBlank, normalizeBlank, Type} from 'angular2/src/core/facade/lang';
-import {Promise} from 'angular2/src/core/facade/async';
+import {Map, MapWrapper, StringMapWrapper, ListWrapper} from 'angular2/src/facade/collection';
+import {isPresent, isBlank, normalizeBlank, Type, CONST_EXPR} from 'angular2/src/facade/lang';
+import {Promise, PromiseWrapper} from 'angular2/src/facade/async';
 
-import {PathRecognizer} from './path_recognizer';
-import {Url} from './url_parser';
 
 /**
  * `RouteParams` is an immutable map of parameters for the given route
@@ -11,29 +9,28 @@ import {Url} from './url_parser';
  *
  * You can inject `RouteParams` into the constructor of a component to use it.
  *
- * ## Example
+ * ### Example
  *
  * ```
- * import {bootstrap, Component, View} from 'angular2/angular2';
- * import {Router, ROUTER_DIRECTIVES, routerBindings, RouteConfig} from 'angular2/router';
+ * import {Component} from 'angular2/core';
+ * import {bootstrap} from 'angular2/platform/browser';
+ * import {Router, ROUTER_DIRECTIVES, ROUTER_PROVIDERS, RouteConfig} from 'angular2/router';
  *
- * @Component({...})
- * @View({directives: [ROUTER_DIRECTIVES]})
+ * @Component({directives: [ROUTER_DIRECTIVES]})
  * @RouteConfig([
  *  {path: '/user/:id', component: UserCmp, as: 'UserCmp'},
  * ])
  * class AppCmp {}
  *
- * @Component({...})
- * @View({ template: 'user: {{id}}' })
+ * @Component({ template: 'user: {{id}}' })
  * class UserCmp {
- *   string: id;
+ *   id: string;
  *   constructor(params: RouteParams) {
  *     this.id = params.get('id');
  *   }
  * }
  *
- * bootstrap(AppCmp, routerBindings(AppCmp));
+ * bootstrap(AppCmp, ROUTER_PROVIDERS);
  * ```
  */
 export class RouteParams {
@@ -43,20 +40,59 @@ export class RouteParams {
 }
 
 /**
+ * `RouteData` is an immutable map of additional data you can configure in your {@link Route}.
+ *
+ * You can inject `RouteData` into the constructor of a component to use it.
+ *
+ * ### Example
+ *
+ * ```
+ * import {Component, View} from 'angular2/core';
+ * import {bootstrap} from 'angular2/platform/browser';
+ * import {Router, ROUTER_DIRECTIVES, routerBindings, RouteConfig} from 'angular2/router';
+ *
+ * @Component({...})
+ * @View({directives: [ROUTER_DIRECTIVES]})
+ * @RouteConfig([
+ *  {path: '/user/:id', component: UserCmp, as: 'UserCmp', data: {isAdmin: true}},
+ * ])
+ * class AppCmp {}
+ *
+ * @Component({...})
+ * @View({ template: 'user: {{isAdmin}}' })
+ * class UserCmp {
+ *   string: isAdmin;
+ *   constructor(data: RouteData) {
+ *     this.isAdmin = data.get('isAdmin');
+ *   }
+ * }
+ *
+ * bootstrap(AppCmp, routerBindings(AppCmp));
+ * ```
+ */
+export class RouteData {
+  constructor(public data: {[key: string]: any} = CONST_EXPR({})) {}
+
+  get(key: string): any { return normalizeBlank(StringMapWrapper.get(this.data, key)); }
+}
+
+export var BLANK_ROUTE_DATA = new RouteData();
+
+/**
  * `Instruction` is a tree of {@link ComponentInstruction}s with all the information needed
  * to transition each component in the app to a given route, including all auxiliary routes.
  *
  * `Instruction`s can be created using {@link Router#generate}, and can be used to
  * perform route changes with {@link Router#navigateByInstruction}.
  *
- * ## Example
+ * ### Example
  *
  * ```
- * import {bootstrap, Component, View} from 'angular2/angular2';
- * import {Router, ROUTER_DIRECTIVES, routerBindings, RouteConfig} from 'angular2/router';
+ * import {Component} from 'angular2/core';
+ * import {bootstrap} from 'angular2/platform/browser';
+ * import {Router, ROUTER_DIRECTIVES, ROUTER_PROVIDERS, RouteConfig} from 'angular2/router';
  *
- * @Component({...})
- * @View({directives: [ROUTER_DIRECTIVES]})
+ * @Component({directives: [ROUTER_DIRECTIVES]})
  * @RouteConfig([
  *  {...},
  * ])
@@ -67,63 +103,190 @@ export class RouteParams {
  *   }
  * }
  *
- * bootstrap(AppCmp, routerBindings(AppCmp));
+ * bootstrap(AppCmp, ROUTER_PROVIDERS);
  * ```
  */
-export class Instruction {
+export abstract class Instruction {
   constructor(public component: ComponentInstruction, public child: Instruction,
               public auxInstruction: {[key: string]: Instruction}) {}
+
+  get urlPath(): string { return isPresent(this.component) ? this.component.urlPath : ''; }
+
+  get urlParams(): string[] { return isPresent(this.component) ? this.component.urlParams : []; }
+
+  get specificity(): string {
+    var total = '';
+    if (isPresent(this.component)) {
+      total += this.component.specificity;
+    }
+    if (isPresent(this.child)) {
+      total += this.child.specificity;
+    }
+    return total;
+  }
+
+  abstract resolveComponent(): Promise<ComponentInstruction>;
+
+  /**
+   * converts the instruction into a URL string
+   */
+  toRootUrl(): string { return this.toUrlPath() + this.toUrlQuery(); }
+
+  /** @internal */
+  _toNonRootUrl(): string {
+    return this._stringifyPathMatrixAuxPrefixed() +
+           (isPresent(this.child) ? this.child._toNonRootUrl() : '');
+  }
+
+  toUrlQuery(): string { return this.urlParams.length > 0 ? ('?' + this.urlParams.join('&')) : ''; }
 
   /**
    * Returns a new instruction that shares the state of the existing instruction, but with
    * the given child {@link Instruction} replacing the existing child.
    */
   replaceChild(child: Instruction): Instruction {
-    return new Instruction(this.component, child, this.auxInstruction);
+    return new ResolvedInstruction(this.component, child, this.auxInstruction);
   }
-}
 
-/**
- * Represents a partially completed instruction during recognition that only has the
- * primary (non-aux) route instructions matched.
- *
- * `PrimaryInstruction` is an internal class used by `RouteRecognizer` while it's
- * figuring out where to navigate.
- */
-export class PrimaryInstruction {
-  constructor(public component: ComponentInstruction, public child: PrimaryInstruction,
-              public auxUrls: Url[]) {}
-}
+  /**
+   * If the final URL for the instruction is ``
+   */
+  toUrlPath(): string {
+    return this.urlPath + this._stringifyAux() +
+           (isPresent(this.child) ? this.child._toNonRootUrl() : '');
+  }
 
-export function stringifyInstruction(instruction: Instruction): string {
-  var params = instruction.component.urlParams.length > 0 ?
-                   ('?' + instruction.component.urlParams.join('&')) :
-                   '';
+  // default instructions override these
+  toLinkUrl(): string {
+    return this.urlPath + this._stringifyAux() +
+           (isPresent(this.child) ? this.child._toLinkUrl() : '');
+  }
 
-  return instruction.component.urlPath + stringifyAux(instruction) +
-         stringifyPrimary(instruction.child) + params;
-}
+  // this is the non-root version (called recursively)
+  /** @internal */
+  _toLinkUrl(): string {
+    return this._stringifyPathMatrixAuxPrefixed() +
+           (isPresent(this.child) ? this.child._toLinkUrl() : '');
+  }
 
-function stringifyPrimary(instruction: Instruction): string {
-  if (isBlank(instruction)) {
+  /** @internal */
+  _stringifyPathMatrixAuxPrefixed(): string {
+    var primary = this._stringifyPathMatrixAux();
+    if (primary.length > 0) {
+      primary = '/' + primary;
+    }
+    return primary;
+  }
+
+  /** @internal */
+  _stringifyMatrixParams(): string {
+    return this.urlParams.length > 0 ? (';' + this.urlParams.join(';')) : '';
+  }
+
+  /** @internal */
+  _stringifyPathMatrixAux(): string {
+    if (isBlank(this.component)) {
+      return '';
+    }
+    return this.urlPath + this._stringifyMatrixParams() + this._stringifyAux();
+  }
+
+  /** @internal */
+  _stringifyAux(): string {
+    var routes = [];
+    StringMapWrapper.forEach(this.auxInstruction, (auxInstruction, _) => {
+      routes.push(auxInstruction._stringifyPathMatrixAux());
+    });
+    if (routes.length > 0) {
+      return '(' + routes.join('//') + ')';
+    }
     return '';
   }
-  var params = instruction.component.urlParams.length > 0 ?
-                   (';' + instruction.component.urlParams.join(';')) :
-                   '';
-  return '/' + instruction.component.urlPath + params + stringifyAux(instruction) +
-         stringifyPrimary(instruction.child);
 }
 
-function stringifyAux(instruction: Instruction): string {
-  var routes = [];
-  StringMapWrapper.forEach(instruction.auxInstruction, (auxInstruction, _) => {
-    routes.push(stringifyPrimary(auxInstruction));
-  });
-  if (routes.length > 0) {
-    return '(' + routes.join('//') + ')';
+
+/**
+ * a resolved instruction has an outlet instruction for itself, but maybe not for...
+ */
+export class ResolvedInstruction extends Instruction {
+  constructor(component: ComponentInstruction, child: Instruction,
+              auxInstruction: {[key: string]: Instruction}) {
+    super(component, child, auxInstruction);
   }
-  return '';
+
+  resolveComponent(): Promise<ComponentInstruction> {
+    return PromiseWrapper.resolve(this.component);
+  }
+}
+
+
+/**
+ * Represents a resolved default route
+ */
+export class DefaultInstruction extends Instruction {
+  constructor(component: ComponentInstruction, child: DefaultInstruction) {
+    super(component, child, {});
+  }
+
+  resolveComponent(): Promise<ComponentInstruction> {
+    return PromiseWrapper.resolve(this.component);
+  }
+
+  toLinkUrl(): string { return ''; }
+
+  /** @internal */
+  _toLinkUrl(): string { return ''; }
+}
+
+
+/**
+ * Represents a component that may need to do some redirection or lazy loading at a later time.
+ */
+export class UnresolvedInstruction extends Instruction {
+  constructor(private _resolver: () => Promise<Instruction>, private _urlPath: string = '',
+              private _urlParams: string[] = CONST_EXPR([])) {
+    super(null, null, {});
+  }
+
+  get urlPath(): string {
+    if (isPresent(this.component)) {
+      return this.component.urlPath;
+    }
+    if (isPresent(this._urlPath)) {
+      return this._urlPath;
+    }
+    return '';
+  }
+
+  get urlParams(): string[] {
+    if (isPresent(this.component)) {
+      return this.component.urlParams;
+    }
+    if (isPresent(this._urlParams)) {
+      return this._urlParams;
+    }
+    return [];
+  }
+
+  resolveComponent(): Promise<ComponentInstruction> {
+    if (isPresent(this.component)) {
+      return PromiseWrapper.resolve(this.component);
+    }
+    return this._resolver().then((resolution: Instruction) => {
+      this.child = resolution.child;
+      return this.component = resolution.component;
+    });
+  }
+}
+
+
+export class RedirectInstruction extends ResolvedInstruction {
+  constructor(component: ComponentInstruction, child: Instruction,
+              auxInstruction: {[key: string]: Instruction}, private _specificity: string) {
+    super(component, child, auxInstruction);
+  }
+
+  get specificity(): string { return this._specificity; }
 }
 
 
@@ -135,47 +298,18 @@ function stringifyAux(instruction: Instruction): string {
  * to route lifecycle hooks, like {@link CanActivate}.
  *
  * `ComponentInstruction`s are [https://en.wikipedia.org/wiki/Hash_consing](hash consed). You should
- * never construct one yourself with "new." Instead, rely on {@link Router/PathRecognizer} to
+ * never construct one yourself with "new." Instead, rely on {@link Router/RouteRecognizer} to
  * construct `ComponentInstruction`s.
  *
  * You should not modify this object. It should be treated as immutable.
  */
 export class ComponentInstruction {
   reuse: boolean = false;
+  public routeData: RouteData;
 
-  /**
-   * @internal
-   */
-  constructor(public urlPath: string, public urlParams: string[],
-              private _recognizer: PathRecognizer, public params: {[key: string]: any} = null) {}
-
-  /**
-   * Returns the component type of the represented route, or `null` if this instruction
-   * hasn't been resolved.
-   */
-  get componentType() { return this._recognizer.handler.componentType; }
-
-  /**
-   * Returns a promise that will resolve to component type of the represented route.
-   * If this instruction references an {@link AsyncRoute}, the `loader` function of that route
-   * will run.
-   */
-  resolveComponentType(): Promise<Type> { return this._recognizer.handler.resolveComponentType(); }
-
-  /**
-   * Returns the specificity of the route associated with this `Instruction`.
-   */
-  get specificity() { return this._recognizer.specificity; }
-
-  /**
-   * Returns `true` if the component type of this instruction has no child {@link RouteConfig},
-   * or `false` if it does.
-   */
-  get terminal() { return this._recognizer.terminal; }
-
-  /**
-   * Returns the route data of the given route that was specified in the {@link RouteDefinition},
-   * or `null` if no route data was specified.
-   */
-  routeData(): Object { return this._recognizer.handler.data; }
+  constructor(public urlPath: string, public urlParams: string[], data: RouteData,
+              public componentType, public terminal: boolean, public specificity: string,
+              public params: {[key: string]: any} = null) {
+    this.routeData = isPresent(data) ? data : BLANK_ROUTE_DATA;
+  }
 }

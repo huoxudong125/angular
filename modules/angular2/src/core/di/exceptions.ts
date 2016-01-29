@@ -1,6 +1,6 @@
-import {ListWrapper} from 'angular2/src/core/facade/collection';
-import {stringify, isBlank} from 'angular2/src/core/facade/lang';
-import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
+import {ListWrapper} from 'angular2/src/facade/collection';
+import {stringify, isBlank} from 'angular2/src/facade/lang';
+import {BaseException, WrappedException, unimplemented} from 'angular2/src/facade/exceptions';
 import {Key} from './key';
 import {Injector} from './injector';
 
@@ -29,9 +29,9 @@ function constructResolvingPath(keys: any[]): string {
 
 
 /**
- * Base class for all errors arising from misconfigured bindings.
+ * Base class for all errors arising from misconfigured providers.
  */
-export class AbstractBindingError extends BaseException {
+export class AbstractProviderError extends BaseException {
   /** @internal */
   message: string;
 
@@ -63,7 +63,7 @@ export class AbstractBindingError extends BaseException {
 
 /**
  * Thrown when trying to retrieve a dependency by `Key` from {@link Injector}, but the
- * {@link Injector} does not have a {@link Binding} for {@link Key}.
+ * {@link Injector} does not have a {@link Provider} for {@link Key}.
  *
  * ### Example ([live demo](http://plnkr.co/edit/vq8D3FRB9aGbnWJqtEPE?p=preview))
  *
@@ -75,7 +75,7 @@ export class AbstractBindingError extends BaseException {
  * expect(() => Injector.resolveAndCreate([A])).toThrowError();
  * ```
  */
-export class NoBindingError extends AbstractBindingError {
+export class NoProviderError extends AbstractProviderError {
   constructor(injector: Injector, key: Key) {
     super(injector, key, function(keys: any[]) {
       var first = stringify(ListWrapper.first(keys).token);
@@ -91,8 +91,8 @@ export class NoBindingError extends AbstractBindingError {
  *
  * ```typescript
  * var injector = Injector.resolveAndCreate([
- *   bind("one").toFactory((two) => "two", [[new Inject("two")]]),
- *   bind("two").toFactory((one) => "one", [[new Inject("one")]])
+ *   provide("one", {useFactory: (two) => "two", deps: [[new Inject("two")]]}),
+ *   provide("two", {useFactory: (one) => "one", deps: [[new Inject("one")]]})
  * ]);
  *
  * expect(() => injector.get("one")).toThrowError();
@@ -100,7 +100,7 @@ export class NoBindingError extends AbstractBindingError {
  *
  * Retrieving `A` or `B` throws a `CyclicDependencyError` as the graph above cannot be constructed.
  */
-export class CyclicDependencyError extends AbstractBindingError {
+export class CyclicDependencyError extends AbstractProviderError {
   constructor(injector: Injector, key: Key) {
     super(injector, key, function(keys: any[]) {
       return `Cannot instantiate cyclic dependency!${constructResolvingPath(keys)}`;
@@ -141,7 +141,6 @@ export class InstantiationError extends WrappedException {
   /** @internal */
   injectors: Injector[];
 
-  /** @internal */
   constructor(injector: Injector, originalException, originalStack, key: Key) {
     super("DI Exception", originalException, originalStack, null);
     this.keys = [key];
@@ -164,7 +163,7 @@ export class InstantiationError extends WrappedException {
 }
 
 /**
- * Thrown when an object other then {@link Binding} (or `Type`) is passed to {@link Injector}
+ * Thrown when an object other then {@link Provider} (or `Type`) is passed to {@link Injector}
  * creation.
  *
  * ### Example ([live demo](http://plnkr.co/edit/YatCFbPAMCL0JSSQ4mvH?p=preview))
@@ -173,10 +172,10 @@ export class InstantiationError extends WrappedException {
  * expect(() => Injector.resolveAndCreate(["not a type"])).toThrowError();
  * ```
  */
-export class InvalidBindingError extends BaseException {
-  constructor(binding) {
-    super("Invalid binding - only instances of Binding and Type are allowed, got: " +
-          binding.toString());
+export class InvalidProviderError extends BaseException {
+  constructor(provider) {
+    super("Invalid provider - only instances of Provider and Type are allowed, got: " +
+          provider.toString());
   }
 }
 
@@ -196,7 +195,7 @@ export class InvalidBindingError extends BaseException {
  * expect(() => Injector.resolveAndCreate([A])).toThrowError();
  * ```
  *
- * This error is also thrown when the class not marked with {@link @Injectable} has parameter types.
+ * This error is also thrown when the class not marked with {@link Injectable} has parameter types.
  *
  * ```typescript
  * class B {}
@@ -223,8 +222,10 @@ export class NoAnnotationError extends BaseException {
         signature.push(parameter.map(stringify).join(' '));
       }
     }
-    return "Cannot resolve all parameters for " + stringify(typeOrFunc) + "(" +
-           signature.join(', ') + "). " + 'Make sure they all have valid type or annotations.';
+    return "Cannot resolve all parameters for '" + stringify(typeOrFunc) + "'(" +
+           signature.join(', ') + "). " +
+           "Make sure that all the parameters are decorated with Inject or have valid type annotations and that '" +
+           stringify(typeOrFunc) + "' is decorated with Injectable.";
   }
 }
 
@@ -247,20 +248,20 @@ export class OutOfBoundsError extends BaseException {
 
 // TODO: add a working example after alpha38 is released
 /**
- * Thrown when a multi binding and a regular binding are bound to the same token.
+ * Thrown when a multi provider and a regular provider are bound to the same token.
  *
  * ### Example
  *
  * ```typescript
  * expect(() => Injector.resolveAndCreate([
- *   new Binding("Strings", {toValue: "string1", multi: true}),
- *   new Binding("Strings", {toValue: "string2", multi: false})
+ *   new Provider("Strings", {useValue: "string1", multi: true}),
+ *   new Provider("Strings", {useValue: "string2", multi: false})
  * ])).toThrowError();
  * ```
  */
-export class MixingMultiBindingsWithRegularBindings extends BaseException {
-  constructor(binding1, binding2) {
-    super("Cannot mix multi bindings and regular bindings, got: " + binding1.toString() + " " +
-          binding2.toString());
+export class MixingMultiProvidersWithRegularProvidersError extends BaseException {
+  constructor(provider1, provider2) {
+    super("Cannot mix multi providers and regular providers, got: " + provider1.toString() + " " +
+          provider2.toString());
   }
 }

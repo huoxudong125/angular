@@ -9,7 +9,7 @@ import {
   afterEach,
   tick,
   fakeAsync
-} from 'angular2/test_lib';
+} from 'angular2/testing_internal';
 
 import {SpyChangeDispatcher} from '../spies';
 
@@ -17,12 +17,15 @@ import {
   CONST_EXPR,
   isPresent,
   isBlank,
+  isNumber,
   isJsObject,
   FunctionWrapper,
+  NumberWrapper,
   normalizeBool
-} from 'angular2/src/core/facade/lang';
-import {BaseException, WrappedException} from 'angular2/src/core/facade/exceptions';
-import {MapWrapper, StringMapWrapper} from 'angular2/src/core/facade/collection';
+} from 'angular2/src/facade/lang';
+import {BaseException, WrappedException} from 'angular2/src/facade/exceptions';
+import {MapWrapper, StringMapWrapper} from 'angular2/src/facade/collection';
+import {DOM} from 'angular2/src/platform/dom/dom_adapter';
 
 import {
   ChangeDispatcher,
@@ -33,7 +36,6 @@ import {
   DirectiveRecord,
   DirectiveIndex,
   PipeTransform,
-  PipeOnDestroy,
   ChangeDetectionStrategy,
   WrappedValue,
   DynamicProtoChangeDetector,
@@ -46,11 +48,13 @@ import {
 
 import {SelectedPipe, Pipes} from 'angular2/src/core/change_detection/pipes';
 import {JitProtoChangeDetector} from 'angular2/src/core/change_detection/jit_proto_change_detector';
+import {OnDestroy} from 'angular2/src/core/linker/interfaces';
 
 import {getDefinition} from './change_detector_config';
 import {createObservableModel} from './change_detector_spec_util';
 import {getFactoryById} from './generated/change_detector_classes';
-import {IS_DART} from '../../platform';
+import {IS_DART} from 'angular2/src/facade/lang';
+import {EventEmitter, ObservableWrapper} from 'angular2/src/facade/async';
 
 const _DEFAULT_CONTEXT = CONST_EXPR(new Object());
 
@@ -73,14 +77,16 @@ export function main() {
 
     describe(`${cdType} Change Detector`, () => {
 
-      function _getProtoChangeDetector(def: ChangeDetectorDefinition) {
+      function _getChangeDetectorFactory(def: ChangeDetectorDefinition) {
         switch (cdType) {
           case 'dynamic':
-            return new DynamicProtoChangeDetector(def);
+            var dynProto = new DynamicProtoChangeDetector(def);
+            return () => dynProto.instantiate();
           case 'JIT':
-            return new JitProtoChangeDetector(def);
+            var jitProto = new JitProtoChangeDetector(def);
+            return () => jitProto.instantiate();
           case 'Pregen':
-            return getFactoryById(def.id)(def);
+            return getFactoryById(def.id);
           default:
             return null;
         }
@@ -88,7 +94,7 @@ export function main() {
 
       function _createWithoutHydrate(expression: string) {
         var dispatcher = new TestDispatcher();
-        var cd = _getProtoChangeDetector(getDefinition(expression).cdDef).instantiate(dispatcher);
+        var cd = _getChangeDetectorFactory(getDefinition(expression).cdDef)();
         return new _ChangeDetectorAndDispatcher(cd, dispatcher);
       }
 
@@ -97,9 +103,8 @@ export function main() {
                                      registry = null, dispatcher = null) {
         if (isBlank(dispatcher)) dispatcher = new TestDispatcher();
         var testDef = getDefinition(expression);
-        var protoCd = _getProtoChangeDetector(testDef.cdDef);
-        var cd = protoCd.instantiate(dispatcher);
-        cd.hydrate(context, testDef.locals, null, registry);
+        var cd = _getChangeDetectorFactory(testDef.cdDef)();
+        cd.hydrate(context, testDef.locals, dispatcher, registry);
         return new _ChangeDetectorAndDispatcher(cd, dispatcher);
       }
 
@@ -108,6 +113,54 @@ export function main() {
         val.changeDetector.detectChanges();
         return val.dispatcher.log;
       }
+
+      describe('short-circuit', () => {
+        it('should support short-circuit for the ternary operator', () => {
+          var address = new Address('Sunnyvale', '94085');
+          expect(_bindSimpleValue('true ? city : zipcode', address))
+              .toEqual(['propName=Sunnyvale']);
+          expect(address.cityGetterCalls).toEqual(1);
+          expect(address.zipCodeGetterCalls).toEqual(0);
+
+          address = new Address('Sunnyvale', '94085');
+          expect(_bindSimpleValue('false ? city : zipcode', address)).toEqual(['propName=94085']);
+          expect(address.cityGetterCalls).toEqual(0);
+          expect(address.zipCodeGetterCalls).toEqual(1);
+        });
+
+        it('should support short-circuit for the && operator', () => {
+          var logical = new Logical();
+          expect(_bindSimpleValue('getTrue() && getTrue()', logical)).toEqual(['propName=true']);
+          expect(logical.trueCalls).toEqual(2);
+
+          logical = new Logical();
+          expect(_bindSimpleValue('getFalse() && getTrue()', logical)).toEqual(['propName=false']);
+          expect(logical.falseCalls).toEqual(1);
+          expect(logical.trueCalls).toEqual(0);
+        });
+
+        it('should support short-circuit for the || operator', () => {
+          var logical = new Logical();
+          expect(_bindSimpleValue('getFalse() || getFalse()', logical)).toEqual(['propName=false']);
+          expect(logical.falseCalls).toEqual(2);
+
+          logical = new Logical();
+          expect(_bindSimpleValue('getTrue() || getFalse()', logical)).toEqual(['propName=true']);
+          expect(logical.falseCalls).toEqual(0);
+          expect(logical.trueCalls).toEqual(1);
+        });
+
+        it('should support nested short-circuits', () => {
+          var address = new Address('Sunnyvale', '94085');
+          var person = new Person('Victor', address);
+          expect(_bindSimpleValue(
+                     'name == "Victor" ? (true ? address.city : address.zipcode) : address.zipcode',
+                     person))
+              .toEqual(['propName=Sunnyvale']);
+          expect(address.cityGetterCalls).toEqual(1);
+          expect(address.zipCodeGetterCalls).toEqual(0);
+        });
+      });
 
       it('should support literals',
          () => { expect(_bindSimpleValue('10')).toEqual(['propName=10']); });
@@ -258,6 +311,19 @@ export function main() {
         expect(_bindSimpleValue('a.sayHi("Jim")', td)).toEqual(['propName=Hi, Jim']);
       });
 
+      it('should support NaN', () => {
+        var person = new Person('misko');
+        person.age = NumberWrapper.NaN;
+        var val = _createChangeDetector('age', person);
+
+        val.changeDetector.detectChanges();
+        expect(val.dispatcher.log).toEqual(['propName=NaN']);
+        val.dispatcher.clear();
+
+        val.changeDetector.detectChanges();
+        expect(val.dispatcher.log).toEqual([]);
+      });
+
       it('should do simple watching', () => {
         var person = new Person('misko');
         var val = _createChangeDetector('name', person);
@@ -297,7 +363,6 @@ export function main() {
 
       it('should support interpolation', () => {
         var val = _createChangeDetector('interpolation', new TestData('value'));
-        val.changeDetector.hydrate(new TestData('value'), null, null, null);
 
         val.changeDetector.detectChanges();
 
@@ -305,8 +370,7 @@ export function main() {
       });
 
       it('should output empty strings for null values in interpolation', () => {
-        var val = _createChangeDetector('interpolation', new TestData('value'));
-        val.changeDetector.hydrate(new TestData(null), null, null, null);
+        var val = _createChangeDetector('interpolation', new TestData(null));
 
         val.changeDetector.detectChanges();
 
@@ -354,6 +418,14 @@ export function main() {
             expect(val.dispatcher.loggedValues).toEqual(['value one two default']);
           });
 
+          it('should associate pipes right-to-left', () => {
+            var registry = new FakePipes('pipe', () => new MultiArgPipe());
+            var person = new Person('value');
+            var val = _createChangeDetector("name | pipe:'a':'b' | pipe:0:1:2", person, registry);
+            val.changeDetector.detectChanges();
+            expect(val.dispatcher.loggedValues).toEqual(['value a b default 0 1 2']);
+          });
+
           it('should not reevaluate pure pipes unless its context or arg changes', () => {
             var pipe = new CountingPipe();
             var registry = new FakePipes('pipe', () => pipe, {pure: true});
@@ -396,27 +468,29 @@ export function main() {
         it('should notify the dispatcher after content children have checked', () => {
           var val = _createChangeDetector('name', new Person('bob'));
           val.changeDetector.detectChanges();
-          expect(val.dispatcher.afterContentCheckedCalled).toEqual(true);
+          expect(val.dispatcher.ngAfterContentCheckedCalled).toEqual(true);
         });
 
         it('should notify the dispatcher after view children have been checked', () => {
           var val = _createChangeDetector('name', new Person('bob'));
           val.changeDetector.detectChanges();
-          expect(val.dispatcher.afterViewCheckedCalled).toEqual(true);
+          expect(val.dispatcher.ngAfterViewCheckedCalled).toEqual(true);
         });
 
         describe('updating directives', () => {
           var directive1;
           var directive2;
+          var directive3;
 
           beforeEach(() => {
             directive1 = new TestDirective();
             directive2 = new TestDirective();
+            directive3 = new TestDirective(null, null, true);
           });
 
           it('should happen directly, without invoking the dispatcher', () => {
             var val = _createWithoutHydrate('directNoDispatcher');
-            val.changeDetector.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []),
+            val.changeDetector.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []),
                                        null);
             val.changeDetector.detectChanges();
             expect(val.dispatcher.loggedValues).toEqual([]);
@@ -424,10 +498,10 @@ export function main() {
           });
 
           describe('lifecycle', () => {
-            describe('onChanges', () => {
+            describe('ngOnChanges', () => {
               it('should notify the directive when a group of records changes', () => {
                 var cd = _createWithoutHydrate('groupChanges').changeDetector;
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1, directive2], []),
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1, directive2], []),
                            null);
                 cd.detectChanges();
                 expect(directive1.changes).toEqual({'a': 1, 'b': 2});
@@ -435,157 +509,181 @@ export function main() {
               });
             });
 
-            describe('doCheck', () => {
+            describe('ngDoCheck', () => {
               it('should notify the directive when it is checked', () => {
                 var cd = _createWithoutHydrate('directiveDoCheck').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
                 cd.detectChanges();
 
-                expect(directive1.doCheckCalled).toBe(true);
-                directive1.doCheckCalled = false;
+                expect(directive1.ngDoCheckCalled).toBe(true);
+                directive1.ngDoCheckCalled = false;
 
                 cd.detectChanges();
-                expect(directive1.doCheckCalled).toBe(true);
+                expect(directive1.ngDoCheckCalled).toBe(true);
               });
 
-              it('should not call doCheck in detectNoChanges', () => {
+              it('should not call ngDoCheck in detectNoChanges', () => {
                 var cd = _createWithoutHydrate('directiveDoCheck').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
 
                 cd.checkNoChanges();
 
-                expect(directive1.doCheckCalled).toBe(false);
+                expect(directive1.ngDoCheckCalled).toBe(false);
               });
             });
 
-            describe('onInit', () => {
+            describe('ngOnInit', () => {
               it('should notify the directive after it has been checked the first time', () => {
                 var cd = _createWithoutHydrate('directiveOnInit').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1, directive2], []),
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1, directive2], []),
                            null);
 
                 cd.detectChanges();
 
-                expect(directive1.onInitCalled).toBe(true);
+                expect(directive1.ngOnInitCalled).toBe(true);
 
-                directive1.onInitCalled = false;
+                directive1.ngOnInitCalled = false;
 
                 cd.detectChanges();
 
-                expect(directive1.onInitCalled).toBe(false);
+                expect(directive1.ngOnInitCalled).toBe(false);
               });
 
-              it('should not call onInit in detectNoChanges', () => {
+              it('should not call ngOnInit in detectNoChanges', () => {
                 var cd = _createWithoutHydrate('directiveOnInit').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
 
                 cd.checkNoChanges();
 
-                expect(directive1.onInitCalled).toBe(false);
+                expect(directive1.ngOnInitCalled).toBe(false);
+              });
+
+              it('should not call ngOnInit again if it throws', () => {
+                var cd = _createWithoutHydrate('directiveOnInit').changeDetector;
+
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive3], []), null);
+                var errored = false;
+                // First pass fails, but ngOnInit should be called.
+                try {
+                  cd.detectChanges();
+                } catch (e) {
+                  errored = true;
+                }
+                expect(errored).toBe(true);
+                expect(directive3.ngOnInitCalled).toBe(true);
+                directive3.ngOnInitCalled = false;
+
+                // Second change detection also fails, but this time ngOnInit should not be called.
+                try {
+                  cd.detectChanges();
+                } catch (e) {
+                  throw new BaseException("Second detectChanges() should not have run detection.");
+                }
+                expect(directive3.ngOnInitCalled).toBe(false);
               });
             });
 
-            describe('afterContentInit', () => {
+            describe('ngAfterContentInit', () => {
               it('should be called after processing the content children', () => {
                 var cd = _createWithoutHydrate('emptyWithDirectiveRecords').changeDetector;
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1, directive2], []),
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1, directive2], []),
                            null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterContentInitCalled).toBe(true);
-                expect(directive2.afterContentInitCalled).toBe(true);
+                expect(directive1.ngAfterContentInitCalled).toBe(true);
+                expect(directive2.ngAfterContentInitCalled).toBe(true);
 
                 // reset directives
-                directive1.afterContentInitCalled = false;
-                directive2.afterContentInitCalled = false;
+                directive1.ngAfterContentInitCalled = false;
+                directive2.ngAfterContentInitCalled = false;
 
                 // Verify that checking should not call them.
                 cd.checkNoChanges();
 
-                expect(directive1.afterContentInitCalled).toBe(false);
-                expect(directive2.afterContentInitCalled).toBe(false);
+                expect(directive1.ngAfterContentInitCalled).toBe(false);
+                expect(directive2.ngAfterContentInitCalled).toBe(false);
 
                 // re-verify that changes should not call them
                 cd.detectChanges();
 
-                expect(directive1.afterContentInitCalled).toBe(false);
-                expect(directive2.afterContentInitCalled).toBe(false);
+                expect(directive1.ngAfterContentInitCalled).toBe(false);
+                expect(directive2.ngAfterContentInitCalled).toBe(false);
               });
 
-              it('should not be called when afterContentInit is false', () => {
+              it('should not be called when ngAfterContentInit is false', () => {
                 var cd = _createWithoutHydrate('noCallbacks').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterContentInitCalled).toEqual(false);
+                expect(directive1.ngAfterContentInitCalled).toEqual(false);
               });
             });
 
-            describe('afterContentChecked', () => {
+            describe('ngAfterContentChecked', () => {
               it('should be called after processing all the children', () => {
                 var cd = _createWithoutHydrate('emptyWithDirectiveRecords').changeDetector;
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1, directive2], []),
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1, directive2], []),
                            null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterContentCheckedCalled).toBe(true);
-                expect(directive2.afterContentCheckedCalled).toBe(true);
+                expect(directive1.ngAfterContentCheckedCalled).toBe(true);
+                expect(directive2.ngAfterContentCheckedCalled).toBe(true);
 
                 // reset directives
-                directive1.afterContentCheckedCalled = false;
-                directive2.afterContentCheckedCalled = false;
+                directive1.ngAfterContentCheckedCalled = false;
+                directive2.ngAfterContentCheckedCalled = false;
 
                 // Verify that checking should not call them.
                 cd.checkNoChanges();
 
-                expect(directive1.afterContentCheckedCalled).toBe(false);
-                expect(directive2.afterContentCheckedCalled).toBe(false);
+                expect(directive1.ngAfterContentCheckedCalled).toBe(false);
+                expect(directive2.ngAfterContentCheckedCalled).toBe(false);
 
                 // re-verify that changes are still detected
                 cd.detectChanges();
 
-                expect(directive1.afterContentCheckedCalled).toBe(true);
-                expect(directive2.afterContentCheckedCalled).toBe(true);
+                expect(directive1.ngAfterContentCheckedCalled).toBe(true);
+                expect(directive2.ngAfterContentCheckedCalled).toBe(true);
               });
 
-              it('should not be called when afterContentChecked is false', () => {
+              it('should not be called when ngAfterContentChecked is false', () => {
                 var cd = _createWithoutHydrate('noCallbacks').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterContentCheckedCalled).toEqual(false);
+                expect(directive1.ngAfterContentCheckedCalled).toEqual(false);
               });
 
               it('should be called in reverse order so the child is always notified before the parent',
                  () => {
                    var cd = _createWithoutHydrate('emptyWithDirectiveRecords').changeDetector;
 
-                   var onChangesDoneCalls = [];
+                   var ngOnChangesDoneCalls = [];
                    var td1;
-                   td1 = new TestDirective(() => onChangesDoneCalls.push(td1));
+                   td1 = new TestDirective(() => ngOnChangesDoneCalls.push(td1));
                    var td2;
-                   td2 = new TestDirective(() => onChangesDoneCalls.push(td2));
-                   cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([td1, td2], []), null);
+                   td2 = new TestDirective(() => ngOnChangesDoneCalls.push(td2));
+                   cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([td1, td2], []), null);
 
                    cd.detectChanges();
 
-                   expect(onChangesDoneCalls).toEqual([td2, td1]);
+                   expect(ngOnChangesDoneCalls).toEqual([td2, td1]);
                  });
 
               it('should be called before processing view children', () => {
                 var parent = _createWithoutHydrate('directNoDispatcher').changeDetector;
                 var child = _createWithoutHydrate('directNoDispatcher').changeDetector;
-                parent.addShadowDomChild(child);
+                parent.addViewChild(child);
 
                 var orderOfOperations = [];
 
@@ -596,10 +694,10 @@ export function main() {
                 parentDirective =
                     new TestDirective(() => { orderOfOperations.push(parentDirective); });
 
-                parent.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([parentDirective], []),
+                parent.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([parentDirective], []),
                                null);
                 child.hydrate(_DEFAULT_CONTEXT, null,
-                              new FakeDirectives([directiveInShadowDom], []), null);
+                              new TestDispatcher([directiveInShadowDom], []), null);
 
                 parent.detectChanges();
                 expect(orderOfOperations).toEqual([parentDirective, directiveInShadowDom]);
@@ -607,104 +705,104 @@ export function main() {
             });
 
 
-            describe('afterViewInit', () => {
+            describe('ngAfterViewInit', () => {
               it('should be called after processing the view children', () => {
                 var cd = _createWithoutHydrate('emptyWithDirectiveRecords').changeDetector;
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1, directive2], []),
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1, directive2], []),
                            null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterViewInitCalled).toBe(true);
-                expect(directive2.afterViewInitCalled).toBe(true);
+                expect(directive1.ngAfterViewInitCalled).toBe(true);
+                expect(directive2.ngAfterViewInitCalled).toBe(true);
 
                 // reset directives
-                directive1.afterViewInitCalled = false;
-                directive2.afterViewInitCalled = false;
+                directive1.ngAfterViewInitCalled = false;
+                directive2.ngAfterViewInitCalled = false;
 
                 // Verify that checking should not call them.
                 cd.checkNoChanges();
 
-                expect(directive1.afterViewInitCalled).toBe(false);
-                expect(directive2.afterViewInitCalled).toBe(false);
+                expect(directive1.ngAfterViewInitCalled).toBe(false);
+                expect(directive2.ngAfterViewInitCalled).toBe(false);
 
                 // re-verify that changes should not call them
                 cd.detectChanges();
 
-                expect(directive1.afterViewInitCalled).toBe(false);
-                expect(directive2.afterViewInitCalled).toBe(false);
+                expect(directive1.ngAfterViewInitCalled).toBe(false);
+                expect(directive2.ngAfterViewInitCalled).toBe(false);
               });
 
 
-              it('should not be called when afterViewInit is false', () => {
+              it('should not be called when ngAfterViewInit is false', () => {
                 var cd = _createWithoutHydrate('noCallbacks').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterViewInitCalled).toEqual(false);
+                expect(directive1.ngAfterViewInitCalled).toEqual(false);
               });
             });
 
-            describe('afterViewChecked', () => {
+            describe('ngAfterViewChecked', () => {
               it('should be called after processing the view children', () => {
                 var cd = _createWithoutHydrate('emptyWithDirectiveRecords').changeDetector;
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1, directive2], []),
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1, directive2], []),
                            null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterViewCheckedCalled).toBe(true);
-                expect(directive2.afterViewCheckedCalled).toBe(true);
+                expect(directive1.ngAfterViewCheckedCalled).toBe(true);
+                expect(directive2.ngAfterViewCheckedCalled).toBe(true);
 
                 // reset directives
-                directive1.afterViewCheckedCalled = false;
-                directive2.afterViewCheckedCalled = false;
+                directive1.ngAfterViewCheckedCalled = false;
+                directive2.ngAfterViewCheckedCalled = false;
 
                 // Verify that checking should not call them.
                 cd.checkNoChanges();
 
-                expect(directive1.afterViewCheckedCalled).toBe(false);
-                expect(directive2.afterViewCheckedCalled).toBe(false);
+                expect(directive1.ngAfterViewCheckedCalled).toBe(false);
+                expect(directive2.ngAfterViewCheckedCalled).toBe(false);
 
                 // re-verify that changes should call them
                 cd.detectChanges();
 
-                expect(directive1.afterViewCheckedCalled).toBe(true);
-                expect(directive2.afterViewCheckedCalled).toBe(true);
+                expect(directive1.ngAfterViewCheckedCalled).toBe(true);
+                expect(directive2.ngAfterViewCheckedCalled).toBe(true);
               });
 
-              it('should not be called when afterViewChecked is false', () => {
+              it('should not be called when ngAfterViewChecked is false', () => {
                 var cd = _createWithoutHydrate('noCallbacks').changeDetector;
 
-                cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive1], []), null);
+                cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([directive1], []), null);
 
                 cd.detectChanges();
 
-                expect(directive1.afterViewCheckedCalled).toEqual(false);
+                expect(directive1.ngAfterViewCheckedCalled).toEqual(false);
               });
 
               it('should be called in reverse order so the child is always notified before the parent',
                  () => {
                    var cd = _createWithoutHydrate('emptyWithDirectiveRecords').changeDetector;
 
-                   var onChangesDoneCalls = [];
+                   var ngOnChangesDoneCalls = [];
                    var td1;
-                   td1 = new TestDirective(null, () => onChangesDoneCalls.push(td1));
+                   td1 = new TestDirective(null, () => ngOnChangesDoneCalls.push(td1));
                    var td2;
-                   td2 = new TestDirective(null, () => onChangesDoneCalls.push(td2));
-                   cd.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([td1, td2], []), null);
+                   td2 = new TestDirective(null, () => ngOnChangesDoneCalls.push(td2));
+                   cd.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([td1, td2], []), null);
 
                    cd.detectChanges();
 
-                   expect(onChangesDoneCalls).toEqual([td2, td1]);
+                   expect(ngOnChangesDoneCalls).toEqual([td2, td1]);
                  });
 
               it('should be called after processing view children', () => {
                 var parent = _createWithoutHydrate('directNoDispatcher').changeDetector;
                 var child = _createWithoutHydrate('directNoDispatcher').changeDetector;
-                parent.addShadowDomChild(child);
+                parent.addViewChild(child);
 
                 var orderOfOperations = [];
 
@@ -715,15 +813,29 @@ export function main() {
                 parentDirective =
                     new TestDirective(null, () => { orderOfOperations.push(parentDirective); });
 
-                parent.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([parentDirective], []),
+                parent.hydrate(_DEFAULT_CONTEXT, null, new TestDispatcher([parentDirective], []),
                                null);
                 child.hydrate(_DEFAULT_CONTEXT, null,
-                              new FakeDirectives([directiveInShadowDom], []), null);
+                              new TestDispatcher([directiveInShadowDom], []), null);
 
                 parent.detectChanges();
                 expect(orderOfOperations).toEqual([directiveInShadowDom, parentDirective]);
               });
             });
+
+            describe('ngOnDestroy', () => {
+              it('should be called on dehydration', () => {
+                var cd = _createChangeDetector('emptyWithDirectiveRecords', _DEFAULT_CONTEXT, null,
+                                               new TestDispatcher([directive1, directive2], []))
+                             .changeDetector;
+
+                cd.dehydrate();
+
+                expect(directive1.destroyCalled).toBe(true);
+                expect(directive2.destroyCalled).toBe(true);
+              });
+            });
+
           });
 
         });
@@ -738,9 +850,8 @@ export function main() {
         });
 
         it('should be called for directive updates in the dev mode', () => {
-          var val = _createWithoutHydrate('directNoDispatcher');
-          val.changeDetector.hydrate(_DEFAULT_CONTEXT, null,
-                                     new FakeDirectives([new TestDirective()], []), null);
+          var val = _createChangeDetector('directNoDispatcher', _DEFAULT_CONTEXT, null,
+                                          new TestDispatcher([new TestDirective()], []));
           val.changeDetector.detectChanges();
           expect(val.dispatcher.debugLog).toEqual(["a=42"]);
         });
@@ -759,9 +870,8 @@ export function main() {
           var directive = new TestDirective();
           directive.a = 'aaa';
 
-          var val = _createWithoutHydrate('readingDirectives');
-          val.changeDetector.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([directive], []),
-                                     null);
+          var val = _createChangeDetector('readingDirectives', _DEFAULT_CONTEXT, null,
+                                          new TestDispatcher([directive], []));
 
           val.changeDetector.detectChanges();
 
@@ -775,6 +885,13 @@ export function main() {
           expect(() => { val.changeDetector.checkNoChanges(); })
               .toThrowError(new RegExp(
                   'Expression [\'"]a in location[\'"] has changed after it was checked'));
+        });
+
+        it('should not throw when two arrays are structurally the same', () => {
+          var val = _createChangeDetector('a', new TestDataWithGetter(() => ['value']));
+          val.changeDetector.detectChanges();
+
+          expect(() => { val.changeDetector.checkNoChanges(); }).not.toThrow();
         });
 
         it('should not break the next run', () => {
@@ -853,32 +970,32 @@ export function main() {
           child = _createChangeDetector('"str"').changeDetector;
         });
 
-        it('should add light dom children', () => {
-          parent.addChild(child);
+        it('should add content children', () => {
+          parent.addContentChild(child);
 
-          expect(parent.lightDomChildren.length).toEqual(1);
-          expect(parent.lightDomChildren[0]).toBe(child);
+          expect(parent.contentChildren.length).toEqual(1);
+          expect(parent.contentChildren[0]).toBe(child);
         });
 
-        it('should add shadow dom children', () => {
-          parent.addShadowDomChild(child);
+        it('should add view children', () => {
+          parent.addViewChild(child);
 
-          expect(parent.shadowDomChildren.length).toEqual(1);
-          expect(parent.shadowDomChildren[0]).toBe(child);
+          expect(parent.viewChildren.length).toEqual(1);
+          expect(parent.viewChildren[0]).toBe(child);
         });
 
-        it('should remove light dom children', () => {
-          parent.addChild(child);
-          parent.removeChild(child);
+        it('should remove content children', () => {
+          parent.addContentChild(child);
+          parent.removeContentChild(child);
 
-          expect(parent.lightDomChildren).toEqual([]);
+          expect(parent.contentChildren).toEqual([]);
         });
 
-        it('should remove shadow dom children', () => {
-          parent.addShadowDomChild(child);
-          parent.removeShadowDomChild(child);
+        it('should remove view children', () => {
+          parent.addViewChild(child);
+          parent.removeViewChild(child);
 
-          expect(parent.shadowDomChildren.length).toEqual(0);
+          expect(parent.viewChildren.length).toEqual(0);
         });
       });
 
@@ -899,7 +1016,7 @@ export function main() {
         });
 
         it('should not check a detached change detector', () => {
-          var val = _createChangeDetector('a', new TestData('value'));
+          var val = _createChangeDetector('a', _DEFAULT_CONTEXT);
 
           val.changeDetector.hydrate(_DEFAULT_CONTEXT, null, null, null);
           val.changeDetector.mode = ChangeDetectionStrategy.Detached;
@@ -919,8 +1036,7 @@ export function main() {
         });
 
         it('should change CheckOnce to Checked', () => {
-          var cd = _createChangeDetector('10').changeDetector;
-          cd.hydrate(_DEFAULT_CONTEXT, null, null, null);
+          var cd = _createChangeDetector('10', _DEFAULT_CONTEXT).changeDetector;
           cd.mode = ChangeDetectionStrategy.CheckOnce;
 
           cd.detectChanges();
@@ -929,8 +1045,7 @@ export function main() {
         });
 
         it('should not change the CheckAlways', () => {
-          var cd = _createChangeDetector('10').changeDetector;
-          cd.hydrate(_DEFAULT_CONTEXT, null, null, null);
+          var cd = _createChangeDetector('10', _DEFAULT_CONTEXT).changeDetector;
           cd.mode = ChangeDetectionStrategy.CheckAlways;
 
           cd.detectChanges();
@@ -954,7 +1069,7 @@ export function main() {
             childDirectiveDetectorOnPush.mode = ChangeDetectionStrategy.Checked;
 
             directives =
-                new FakeDirectives([new TestData(null), new TestData(null)],
+                new TestDispatcher([new TestData(null), new TestData(null)],
                                    [childDirectiveDetectorRegular, childDirectiveDetectorOnPush]);
           });
 
@@ -1028,7 +1143,7 @@ export function main() {
               it('should mark OnPushObserve detectors as CheckOnce when an observable directive fires an event',
                  fakeAsync(() => {
                    var dir = createObservableModel();
-                   var directives = new FakeDirectives([dir], []);
+                   var directives = new TestDispatcher([dir], []);
 
                    var cd = _createWithoutHydrate('onPushObserveDirective').changeDetector;
                    cd.hydrate(_DEFAULT_CONTEXT, null, directives, null);
@@ -1093,7 +1208,7 @@ export function main() {
         function changeDetector(mode, parent) {
           var val = _createChangeDetector('10');
           val.changeDetector.mode = mode;
-          if (isPresent(parent)) parent.addChild(val.changeDetector);
+          if (isPresent(parent)) parent.addContentChild(val.changeDetector);
           return val.changeDetector;
         }
 
@@ -1130,7 +1245,7 @@ export function main() {
           expect(cd.hydrated()).toBe(true);
         });
 
-        it('should destroy all active pipes implementing onDestroy during dehyration', () => {
+        it('should destroy all active pipes implementing ngOnDestroy during dehyration', () => {
           var pipe = new PipeWithOnDestroy();
           var registry = new FakePipes('pipe', () => pipe);
           var cd = _createChangeDetector('name | pipe', new Person('bob'), registry).changeDetector;
@@ -1141,7 +1256,7 @@ export function main() {
           expect(pipe.destroyCalled).toBe(true);
         });
 
-        it('should not call onDestroy all pipes that do not implement onDestroy', () => {
+        it('should not call ngOnDestroy all pipes that do not implement ngOnDestroy', () => {
           var pipe = new CountingPipe();
           var registry = new FakePipes('pipe', () => pipe);
           var cd = _createChangeDetector('name | pipe', new Person('bob'), registry).changeDetector;
@@ -1159,7 +1274,7 @@ export function main() {
 
           val.changeDetector.dehydrate();
           expect(() => {val.changeDetector.detectChanges()})
-              .toThrowErrorWith("Attempt to detect changes on a dehydrated detector");
+              .toThrowErrorWith("Attempt to use a dehydrated detector");
           expect(val.dispatcher.log).toEqual(['propName=Bob']);
         });
       });
@@ -1192,30 +1307,31 @@ export function main() {
       });
 
       describe('handleEvent', () => {
-        var locals;
+        var event;
         var d: TestDirective;
 
         beforeEach(() => {
-          locals = new Locals(null, MapWrapper.createFromStringMap({"$event": "EVENT"}));
+          event = "EVENT";
           d = new TestDirective();
         });
 
         it('should execute events', () => {
           var val = _createChangeDetector('(event)="onEvent($event)"', d, null);
-          val.changeDetector.handleEvent("event", 0, locals);
+          val.changeDetector.handleEvent("event", 0, event);
           expect(d.event).toEqual("EVENT");
         });
 
         it('should execute host events', () => {
           var val = _createWithoutHydrate('(host-event)="onEvent($event)"');
-          val.changeDetector.hydrate(_DEFAULT_CONTEXT, null, new FakeDirectives([d], []), null);
-          val.changeDetector.handleEvent("host-event", 0, locals);
+          val.changeDetector.hydrate(_DEFAULT_CONTEXT, null,
+                                     new TestDispatcher([d, new TestDirective()], []), null);
+          val.changeDetector.handleEvent("host-event", 0, event);
           expect(d.event).toEqual("EVENT");
         });
 
         it('should support field assignments', () => {
           var val = _createChangeDetector('(event)="b=a=$event"', d, null);
-          val.changeDetector.handleEvent("event", 0, locals);
+          val.changeDetector.handleEvent("event", 0, event);
           expect(d.a).toEqual("EVENT");
           expect(d.b).toEqual("EVENT");
         });
@@ -1223,33 +1339,104 @@ export function main() {
         it('should support keyed assignments', () => {
           d.a = ["OLD"];
           var val = _createChangeDetector('(event)="a[0]=$event"', d, null);
-          val.changeDetector.handleEvent("event", 0, locals);
+          val.changeDetector.handleEvent("event", 0, event);
           expect(d.a).toEqual(["EVENT"]);
         });
 
         it('should support chains', () => {
           d.a = 0;
           var val = _createChangeDetector('(event)="a=a+1; a=a+1;"', d, null);
-          val.changeDetector.handleEvent("event", 0, locals);
+          val.changeDetector.handleEvent("event", 0, event);
           expect(d.a).toEqual(2);
         });
 
-        // TODO: enable after chaning dart infrastructure for generating tests
+        // TODO: enable after chaining dart infrastructure for generating tests
         // it('should throw when trying to assign to a local', () => {
         //   expect(() => {
         //     _createChangeDetector('(event)="$event=1"', d, null)
         //   }).toThrowError(new RegExp("Cannot reassign a variable binding"));
         // });
 
-        it('should return the prevent default value', () => {
+        it('should return false if the event handler returned false', () => {
           var val = _createChangeDetector('(event)="false"', d, null);
-          var res = val.changeDetector.handleEvent("event", 0, locals);
-          expect(res).toBe(true);
+          var res = val.changeDetector.handleEvent("event", 0, event);
+          expect(res).toBe(false);
 
           val = _createChangeDetector('(event)="true"', d, null);
-          res = val.changeDetector.handleEvent("event", 0, locals);
+          res = val.changeDetector.handleEvent("event", 0, event);
+          expect(res).toBe(true);
+
+          val = _createChangeDetector('(event)="true; false"', d, null);
+          res = val.changeDetector.handleEvent("event", 0, event);
           expect(res).toBe(false);
         });
+
+        it('should support short-circuiting', () => {
+          d.a = 0;
+          var val = _createChangeDetector('(event)="true ? a = a + 1 : a = a + 1"', d, null);
+          val.changeDetector.handleEvent("event", 0, event);
+          expect(d.a).toEqual(1);
+        });
+      });
+
+      if (DOM.supportsDOMEvents()) {
+        describe('subscribe to EventEmitters', () => {
+          it('should call handleEvent when an output of a directive fires', fakeAsync(() => {
+               var directive1 = new TestDirective();
+               var directive2 = new TestDirective();
+               _createChangeDetector('(host-event)="onEvent(\$event)"', new Object(), null,
+                                     new TestDispatcher([directive1, directive2]));
+               ObservableWrapper.callEmit(directive2.eventEmitter, 'EVENT');
+
+               tick();
+
+               expect(directive1.event).toEqual('EVENT');
+             }));
+
+          it('should ignore events when dehydrated', fakeAsync(() => {
+               var directive1 = new TestDirective();
+               var directive2 = new TestDirective();
+               var cd = _createChangeDetector('(host-event)="onEvent(\$event)"', new Object(), null,
+                                              new TestDispatcher([directive1, directive2]))
+                            .changeDetector;
+               cd.dehydrate();
+               ObservableWrapper.callEmit(directive2.eventEmitter, 'EVENT');
+
+               tick();
+
+               expect(directive1.event).toBeFalsy();
+             }));
+        });
+      }
+
+      describe('destroyRecursive', () => {
+        var parent, child;
+        var parentDispatcher, childDispatcher;
+
+        beforeEach(() => {
+          parentDispatcher = new TestDispatcher();
+          parent = _createChangeDetector('10', null, null, parentDispatcher).changeDetector;
+          childDispatcher = new TestDispatcher();
+          child = _createChangeDetector('"str"', null, null, childDispatcher).changeDetector;
+          parent.addContentChild(child);
+        });
+
+        it('should notify the dispatcher', () => {
+          child.destroyRecursive();
+          expect(childDispatcher.ngOnDestroyCalled).toBe(true);
+        });
+
+        it('should dehydrate the change detector', () => {
+          child.destroyRecursive();
+          expect(child.hydrated()).toBe(false);
+        });
+
+        it('should destroy children', () => {
+          parent.destroyRecursive();
+          expect(parentDispatcher.ngOnDestroyCalled).toBe(true);
+          expect(childDispatcher.ngOnDestroyCalled).toBe(true);
+        });
+
       });
     });
   });
@@ -1260,9 +1447,9 @@ class CountingPipe implements PipeTransform {
   transform(value, args = null) { return `${value} state:${this.state ++}`; }
 }
 
-class PipeWithOnDestroy implements PipeTransform, PipeOnDestroy {
+class PipeWithOnDestroy implements PipeTransform, OnDestroy {
   destroyCalled: boolean = false;
-  onDestroy() { this.destroyCalled = true; }
+  ngOnDestroy() { this.destroyCalled = true; }
 
   transform(value, args = null) { return null; }
 }
@@ -1303,47 +1490,57 @@ class TestDirective {
   a;
   b;
   changes;
-  doCheckCalled = false;
-  onInitCalled = false;
+  ngDoCheckCalled = false;
+  ngOnInitCalled = false;
 
-  afterContentInitCalled = false;
-  afterContentCheckedCalled = false;
+  ngAfterContentInitCalled = false;
+  ngAfterContentCheckedCalled = false;
 
-  afterViewInitCalled = false;
-  afterViewCheckedCalled = false;
+  ngAfterViewInitCalled = false;
+  ngAfterViewCheckedCalled = false;
+  destroyCalled: boolean = false;
   event;
+  eventEmitter: EventEmitter<string> = new EventEmitter<string>();
 
-  constructor(public afterContentCheckedSpy = null, public afterViewCheckedSpy = null) {}
+  constructor(public ngAfterContentCheckedSpy = null, public ngAfterViewCheckedSpy = null,
+              public throwOnInit = false) {}
 
   onEvent(event) { this.event = event; }
 
-  doCheck() { this.doCheckCalled = true; }
+  ngDoCheck() { this.ngDoCheckCalled = true; }
 
-  onInit() { this.onInitCalled = true; }
+  ngOnInit() {
+    this.ngOnInitCalled = true;
+    if (this.throwOnInit) {
+      throw "simulated ngOnInit failure";
+    }
+  }
 
-  onChanges(changes) {
+  ngOnChanges(changes) {
     var r = {};
     StringMapWrapper.forEach(changes, (c, key) => r[key] = c.currentValue);
     this.changes = r;
   }
 
-  afterContentInit() { this.afterContentInitCalled = true; }
+  ngAfterContentInit() { this.ngAfterContentInitCalled = true; }
 
-  afterContentChecked() {
-    this.afterContentCheckedCalled = true;
-    if (isPresent(this.afterContentCheckedSpy)) {
-      this.afterContentCheckedSpy();
+  ngAfterContentChecked() {
+    this.ngAfterContentCheckedCalled = true;
+    if (isPresent(this.ngAfterContentCheckedSpy)) {
+      this.ngAfterContentCheckedSpy();
     }
   }
 
-  afterViewInit() { this.afterViewInitCalled = true; }
+  ngAfterViewInit() { this.ngAfterViewInitCalled = true; }
 
-  afterViewChecked() {
-    this.afterViewCheckedCalled = true;
-    if (isPresent(this.afterViewCheckedSpy)) {
-      this.afterViewCheckedSpy();
+  ngAfterViewChecked() {
+    this.ngAfterViewCheckedCalled = true;
+    if (isPresent(this.ngAfterViewCheckedSpy)) {
+      this.ngAfterViewCheckedSpy();
     }
   }
+
+  ngOnDestroy() { this.destroyCalled = true; }
 }
 
 class Person {
@@ -1362,9 +1559,41 @@ class Person {
 }
 
 class Address {
-  constructor(public city: string) {}
+  cityGetterCalls: number = 0;
+  zipCodeGetterCalls: number = 0;
+
+  constructor(public _city: string, public _zipcode = null) {}
+
+  get city() {
+    this.cityGetterCalls++;
+    return this._city;
+  }
+
+  get zipcode() {
+    this.zipCodeGetterCalls++;
+    return this._zipcode;
+  }
+
+  set city(v) { this._city = v; }
+
+  set zipcode(v) { this._zipcode = v; }
 
   toString(): string { return isBlank(this.city) ? '-' : this.city }
+}
+
+class Logical {
+  trueCalls: number = 0;
+  falseCalls: number = 0;
+
+  getTrue() {
+    this.trueCalls++;
+    return true;
+  }
+
+  getFalse() {
+    this.falseCalls++;
+    return false;
+  }
 }
 
 class Uninitialized {
@@ -1375,30 +1604,41 @@ class TestData {
   constructor(public a: any) {}
 }
 
-class FakeDirectives {
-  constructor(public directives: Array<TestData | TestDirective>,
-              public detectors: ProtoChangeDetector[]) {}
+class TestDataWithGetter {
+  constructor(private fn: Function) {}
 
-  getDirectiveFor(di: DirectiveIndex) { return this.directives[di.directiveIndex]; }
-
-  getDetectorFor(di: DirectiveIndex) { return this.detectors[di.directiveIndex]; }
+  get a() { return this.fn(); }
 }
 
 class TestDispatcher implements ChangeDispatcher {
   log: string[];
   debugLog: string[];
   loggedValues: any[];
-  afterContentCheckedCalled: boolean = false;
-  afterViewCheckedCalled: boolean = false;
+  ngAfterContentCheckedCalled: boolean = false;
+  ngAfterViewCheckedCalled: boolean = false;
+  ngOnDestroyCalled: boolean = false;
 
-  constructor() { this.clear(); }
+  constructor(public directives: Array<TestData | TestDirective> = null,
+              public detectors: any[] = null) {
+    if (isBlank(this.directives)) {
+      this.directives = [];
+    }
+    if (isBlank(this.detectors)) {
+      this.detectors = [];
+    }
+    this.clear();
+  }
 
   clear() {
     this.log = [];
     this.debugLog = [];
     this.loggedValues = [];
-    this.afterContentCheckedCalled = true;
+    this.ngAfterContentCheckedCalled = true;
   }
+
+  getDirectiveFor(di: DirectiveIndex) { return this.directives[di.directiveIndex]; }
+
+  getDetectorFor(di: DirectiveIndex) { return this.detectors[di.directiveIndex]; }
 
   notifyOnBinding(target, value) {
     this.log.push(`${target.name}=${this._asString(value)}`);
@@ -1407,12 +1647,20 @@ class TestDispatcher implements ChangeDispatcher {
 
   logBindingUpdate(target, value) { this.debugLog.push(`${target.name}=${this._asString(value)}`); }
 
-  notifyAfterContentChecked() { this.afterContentCheckedCalled = true; }
-  notifyAfterViewChecked() { this.afterViewCheckedCalled = true; }
+  notifyAfterContentChecked() { this.ngAfterContentCheckedCalled = true; }
+  notifyAfterViewChecked() { this.ngAfterViewCheckedCalled = true; }
 
-  getDebugContext(a, b) { return null; }
+  notifyOnDestroy() { this.ngOnDestroyCalled = true; }
 
-  _asString(value) { return (isBlank(value) ? 'null' : value.toString()); }
+  getDebugContext(a, b, c) { return null; }
+
+  _asString(value) {
+    if (isNumber(value) && NumberWrapper.isNaN(value)) {
+      return 'NaN';
+    }
+
+    return isBlank(value) ? 'null' : value.toString();
+  }
 }
 
 class _ChangeDetectorAndDispatcher {
